@@ -1,17 +1,17 @@
 # The JavaScript build is platform independent, so it always runs on the builder's own architecture
 # (no QEMU); only the small runtime stage is built per target architecture.
-FROM --platform=$BUILDPLATFORM node:24-slim AS deps
+FROM --platform=$BUILDPLATFORM node:26-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-FROM --platform=$BUILDPLATFORM node:24-slim AS build
+FROM --platform=$BUILDPLATFORM node:26-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY . .
 RUN npm run build
 
-FROM node:24-slim
+FROM node:26-slim
 LABEL org.opencontainers.image.source="https://github.com/Seelan-Tech/emulator-console" \
       org.opencontainers.image.description="A local web console for use with the AWS Emulator" \
       org.opencontainers.image.licenses="MIT"
