@@ -1,0 +1,24 @@
+# Lambda
+
+![A Lambda function](../images/lambda-function.png#gh-light-mode-only)
+![A Lambda function](../images/lambda-function-dark.png#gh-dark-mode-only)
+
+## Functions
+
+**Lambda** lists functions with their runtime and **State**. A new or updated function is **Pending** for a few seconds and then **Active**; the list refreshes itself, and the emulator rejects invocations until the function is active.
+
+**Create function** takes a **Function name**, a **Runtime** (Python 3.12 or 3.13, Node.js 20 or 22), a **Handler**, **Memory**, **Timeout** and a **Role ARN** that defaults to a placeholder. The editor starts with a working handler that changes with the runtime. You can write the code inline or upload a **.zip** instead.
+
+## Code
+
+The **Code** tab edits the handler source for inline functions and saves it with **Update code**. A recorded code update is stored as base64, so fixtures that contain zips can be large.
+
+## Configuration
+
+**Configuration** edits the **Handler**, **Memory**, **Timeout** and environment variables (as JSON) and saves with **Save configuration**. Invalid JSON is reported before anything is sent.
+
+## Invoking
+
+Write a **Test event** (JSON) and press **Invoke**. The **Response** shows the status code, the returned payload and, because the console asks for the execution log, the function's **Log** output. A function that raises an error shows the error type and message, with the status of the invocation. The emulator really runs your code.
+
+**Save event** keeps a test event in your browser so you can load it again from **Saved events**; **Clear saved events** forgets them. Invocations are never recorded.

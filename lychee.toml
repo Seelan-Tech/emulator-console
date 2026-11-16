@@ -1,0 +1,10 @@
+# Link checking for the Markdown docs. Relative links and anchors must resolve; external links must answer.
+exclude_path = ["node_modules", ".next", "coverage", ".e2e"]
+exclude = [
+  '^https?://localhost',
+  '^https?://127\.0\.0\.1',
+  '^https?://ghcr\.io',
+]
+max_retries = 3
+timeout = 20
+accept = ["200..=299", "403", "429"]

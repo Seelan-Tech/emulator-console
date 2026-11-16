@@ -1,0 +1,21 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false, // long lines are fine: prose is not hard-wrapped
+    "MD024": { "siblings_only": true }, // repeated headings under different parents
+    "MD033": false, // inline HTML (badges, <kbd>)
+    "MD041": false,
+    "MD060": false, // table alignment is Prettier's job
+  },
+  "globs": ["**/*.md"],
+  "ignores": [
+    "node_modules/**",
+    ".next/**",
+    "coverage/**",
+    ".e2e/**",
+    "test-results/**",
+    "playwright-report/**",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md", // generated
+  ],
+}

@@ -1,0 +1,8 @@
+# Extend the default rules; allow only the public fingerprint of AWS's package-signing key, which
+# docker/emulator.Dockerfile pins and which gitleaks mistakes for an API key.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "AWS package-signing key fingerprint (public)"
+regexes = ['''98BCF336A3BE53B734E967C52E5BF49BD940F624''']

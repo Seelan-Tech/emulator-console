@@ -1,0 +1,83 @@
+name: Emulator update
+
+# Dependabot cannot watch the AWS Emulator (it is an RPM download), so this does the same job: when AWS
+# publishes a newer release, open a PR that bumps the pin in docker/emulator.Dockerfile and run CI on it.
+# Merging stays manual, after the e2e suites pass against the new version. See docs/emulator-setup.md.
+
+on:
+  schedule:
+    - cron: "17 6 * * 1" # Mondays 06:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: emulator-update
+
+jobs:
+  bump:
+    name: Check for a new release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Find the newest release
+        id: ver
+        run: |
+          current=$(sed -n 's/^ARG EMULATOR_VERSION=\(.*\)$/\1/p' docker/emulator.Dockerfile)
+          latest=$(gh api repos/aws/aws-emulator/releases/latest --jq .tag_name | sed 's/^v//')
+          [[ "$latest" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "unexpected release tag: $latest"; exit 1; }
+          echo "pinned $current, latest $latest"
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -1)
+          if [ "$current" = "$latest" ] || [ "$newest" != "$latest" ]; then
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "bump=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+      - name: Check that both packages are published
+        if: steps.ver.outputs.bump == 'true'
+        run: |
+          base=https://downloads.aws.com/aws-emulator/packages/aws-emulator/LTS
+          for arch in x86_64 aarch64; do
+            for ext in rpm rpm.sig; do
+              curl -fsSI -o /dev/null "$base/aws-emulator-${{ steps.ver.outputs.latest }}-1-$arch.$ext"
+            done
+          done
+      - name: Open or update the bump PR
+        if: steps.ver.outputs.bump == 'true'
+        env:
+          CURRENT: ${{ steps.ver.outputs.current }}
+          LATEST: ${{ steps.ver.outputs.latest }}
+        run: |
+          branch="chore/emulator-$LATEST"
+          # A PR that was ever opened for this version (even if closed) means a person already decided; leave it be.
+          if [ -n "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            echo "a PR for $branch already exists; nothing to do"; exit 0
+          fi
+          if ! git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git checkout -b "$branch"
+            sed -i "s/^ARG EMULATOR_VERSION=.*/ARG EMULATOR_VERSION=$LATEST/" docker/emulator.Dockerfile
+            git commit -am "chore(emulator): bump AWS Emulator to $LATEST"
+            git push -u origin "$branch"
+          fi
+          gh pr create --base main --head "$branch" \
+            --title "chore(emulator): bump AWS Emulator to $LATEST" \
+            --label dependencies \
+            --body "Bumps the pinned AWS Emulator from $CURRENT to $LATEST.
+
+          Release notes: https://github.com/aws/aws-emulator/releases/tag/v$LATEST
+
+          The image build verifies AWS's GPG signature. Merge only when CI is green: the e2e suites run against this version. Fidelity fixes can change emulator behaviour, so skim the release notes first. Rollback is reverting this commit (see docs/emulator-setup.md)."
+          # Pull requests opened with GITHUB_TOKEN do not start pull_request workflows; run CI on the branch directly.
+          gh workflow run ci.yml --ref "$branch"

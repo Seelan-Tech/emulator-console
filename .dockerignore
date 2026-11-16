@@ -1,0 +1,22 @@
+# Keep the app image's build context small: only what `npm run build` and the runtime need.
+.git
+.github
+.idea
+.vscode
+node_modules
+.next
+coverage
+test-results
+playwright-report
+docs
+e2e
+docker
+compose.yaml
+*.md
+!THIRD_PARTY_NOTICES.md
+.env
+.env.*
+!.env.example
+*.log
+
+data

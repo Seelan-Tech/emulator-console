@@ -1,0 +1,54 @@
+# AWS Emulator + Emulator Console, a local developer companion (service screens, fixtures, activity log).
+#
+#   docker compose up -d --build     console http://127.0.0.1:3000, emulator https://127.0.0.1:9297
+#
+# The emulator writes its credentials, CA and AWS config to ~/.aws/emulator/<port>/ on the host, so the
+# AWS CLI setup you already use (AWS_ENDPOINT_URL, AWS_CA_BUNDLE, ...) keeps working unchanged.
+#
+# Overrides (shell env or .env): EMU_PORT, CONSOLE_PORT, EMU_STATE_DIR, EMULATOR_TELEMETRY, APP_SECRET (set your own).
+name: emulator-console
+
+services:
+  emulator:
+    build:
+      context: ./docker
+      dockerfile: emulator.Dockerfile
+    image: aws-emulator
+    user: "1000"
+    # The emulator derives ~/.aws/emulator from $HOME; mirror the host path so the files it writes
+    # (and the paths it logs) are the same ones the host CLI reads.
+    environment:
+      HOME: ${HOME}
+      # The emulator sends anonymous usage data to AWS unless told not to. Off here; set EMULATOR_TELEMETRY=on to allow it.
+      EMULATOR_TELEMETRY: ${EMULATOR_TELEMETRY:-off}
+    command: ["-p", "${EMU_PORT:-9297}"]
+    volumes:
+      - ${EMU_STATE_DIR:-${HOME}/.aws/emulator}:${HOME}/.aws/emulator
+    # The emulator must bind 0.0.0.0 inside the container (image entrypoint); publish on loopback only.
+    ports:
+      - "127.0.0.1:${EMU_PORT:-9297}:${EMU_PORT:-9297}"
+    restart: unless-stopped
+
+  console:
+    build:
+      context: .
+    image: emulator-console
+    depends_on:
+      emulator:
+        condition: service_started
+    environment:
+      DATA_DIR: /data # the console's SQLite database, on the console-data volume
+      # Encrypts stored target secrets. The default is for local use only: always set your own.
+      APP_SECRET: ${APP_SECRET:-local-dev-only-secret-change-me-0123456789}
+      LOCAL_TARGET_ENDPOINT: https://emulator:${EMU_PORT:-9297}
+      ALLOW_LOCAL_CREDENTIAL_FILES: "true" # targets may read the emulator's own credential files
+      LOCAL_CREDENTIALS_ROOT: /emu
+    volumes:
+      - console-data:/data
+      - ${EMU_STATE_DIR:-${HOME}/.aws/emulator}:/emu:ro
+    ports:
+      - "127.0.0.1:${CONSOLE_PORT:-3000}:3000"
+    restart: unless-stopped
+
+volumes:
+  console-data:

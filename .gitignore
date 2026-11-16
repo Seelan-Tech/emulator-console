@@ -1,0 +1,32 @@
+# dependencies and build output
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# environment (only .env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# test artefacts
+test-results/
+playwright-report/
+blob-report/
+
+# editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+.e2e/
+playwright-report/
+
+# local database (DATA_DIR default)
+/data
