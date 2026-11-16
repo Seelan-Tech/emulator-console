@@ -88,6 +88,16 @@ This starts a throwaway stack, seeds example resources and photographs the main 
 3. Set the version in `package.json`, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 4. The release workflow builds a multi-arch console image, pushes it to `ghcr.io/seelan-tech/emulator-console` and creates the GitHub release with generated notes. The emulator image is never published: it is built locally from AWS's signed package.
 
+## Branch protection
+
+The rules for `main` live in `.github/rulesets/main.json`: changes go through a pull request, every CI check must pass on an up-to-date branch, history stays linear, and force-pushes and deletion are blocked. Repository admins can bypass through a pull request only. GitHub rulesets need a public repository (or a paid plan), so apply them once, as an admin, after the repository goes public:
+
+```sh
+.github/rulesets/apply.sh
+```
+
+Re-run it after changing the file. When a CI job is added or renamed, update the check names in `main.json` too.
+
 ## Updating the AWS Emulator
 
 The emulator version is pinned in `docker/emulator.Dockerfile` and bumped by PRs from `.github/workflows/emulator-update.yml`. See [Emulator setup and versions](emulator-setup.md) for how to review, apply and roll back a bump.
