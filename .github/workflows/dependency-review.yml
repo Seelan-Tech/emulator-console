@@ -10,6 +10,8 @@ permissions:
 jobs:
   review:
     name: Dependency review
+    # Needs GitHub Advanced Security, which is free only on public repositories.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
