@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-15
+
 ### Added
 
 - First public version of Emulator Console, a local web console for use with the AWS Emulator.
@@ -15,3 +17,6 @@ All notable changes to this project are documented here. The format is based on
 - The emulator build is shown next to each local target.
 - Docker Compose stack: the emulator (pinned to a version and verified against AWS's signature, telemetry off by default) and the console, with its data in a SQLite file.
 - User guide in `docs/`.
+
+[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/Seelan-Tech/emulator-console/releases/tag/v0.1.0
