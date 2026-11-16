@@ -10,14 +10,23 @@ updates:
       codemirror: { patterns: ["@codemirror/*", "@uiw/*"] }
       types: { patterns: ["@types/*"] }
     commit-message: { prefix: "chore(deps)" }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"] # majors are taken by hand
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
     commit-message: { prefix: "chore(docker)" }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"] # majors are taken by hand
   - package-ecosystem: docker
     directory: /docker
     schedule: { interval: weekly }
     commit-message: { prefix: "chore(docker)" }
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"] # majors are taken by hand
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
