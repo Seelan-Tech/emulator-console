@@ -35,6 +35,7 @@ test("SNS: topic, subscribe a queue (policy added), publish is delivered, unsubs
     // an email subscription stays pending
     await page.getByRole("button", { name: "Subscribe", exact: true }).click();
     await page.getByLabel("Protocol").selectOption("email");
+    await expect(page.getByRole("note")).toContainText("never confirms email subscriptions");
     await page.getByLabel("Endpoint").fill("someone@example.com");
     await page.getByRole("dialog").getByRole("button", { name: "Subscribe" }).click();
     await expect(page.getByText("pending confirmation")).toBeVisible();

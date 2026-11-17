@@ -39,5 +39,8 @@ export const endpointHint: Record<Protocol, string> = {
   sms: "+15555550100",
 };
 
+// The emulator never confirms these subscriptions (no confirmation message is sent), so nothing is delivered to them.
+export const deliversOnEmulator = (p: Protocol) => p === "sqs" || p === "lambda";
+
 // Raw delivery only applies to endpoints that receive the message body directly.
 export const supportsRawDelivery = (p: Protocol) => p === "sqs" || p === "http" || p === "https";
