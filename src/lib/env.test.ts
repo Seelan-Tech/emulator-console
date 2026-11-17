@@ -3,7 +3,16 @@ import { readFileSync } from "node:fs";
 
 import { test } from "vitest";
 
-import { ENV_DOCS, EnvError, envSchema, readEnv, renderConfigDoc, renderEnvExample, validateEnv } from "./env";
+import {
+  ENV_DOCS,
+  EnvError,
+  envSchema,
+  escapeCell,
+  readEnv,
+  renderConfigDoc,
+  renderEnvExample,
+  validateEnv,
+} from "./env";
 
 test("defaults apply when nothing is set", () => {
   const e = readEnv({});
@@ -79,4 +88,10 @@ test(".env.example is exactly what the code documents (run `npm run env:example`
 
 test("docs/configuration.md is exactly what the code documents (run `npm run env:example` to regenerate)", () => {
   assert.equal(readFileSync(new URL("../../docs/configuration.md", import.meta.url), "utf8"), renderConfigDoc());
+});
+
+test("table cells escape backslashes before pipes", () => {
+  assert.equal(escapeCell("a|b"), "a\\|b");
+  assert.equal(escapeCell("a\\b"), "a\\\\b");
+  assert.equal(escapeCell("a\\|b"), "a\\\\\\|b");
 });

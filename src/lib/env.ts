@@ -150,10 +150,13 @@ export function renderEnvExample(): string {
   return `# Configuration for Emulator Console. Copy to .env and edit. Lines starting with "# KEY=" are optional.\n\n${blocks.join("\n\n")}\n`;
 }
 
+// Escapes a value for a markdown table cell: backslashes first, so the one added before a pipe is not itself undone.
+export const escapeCell = (s: string) => s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|");
+
 // The text of docs/configuration.md, kept identical to the code by a test (`npm run env:example` regenerates it).
 export function renderConfigDoc(): string {
   const groups = [...new Set(ENV_DOCS.map((d) => d.group))];
-  const cell = (s: string) => s.replace(/\|/g, "\\|");
+  const cell = escapeCell;
   const sections = groups.map((g) => {
     const rows = ENV_DOCS.filter((d) => d.group === g).map((d) => {
       const required = d.name === "APP_SECRET";
