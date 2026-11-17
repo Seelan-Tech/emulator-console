@@ -4,6 +4,8 @@ exclude = [
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://ghcr\.io',
+  # Changelog links to a release or tag that exists only once the release is cut.
+  '^https://github\.com/Seelan-Tech/emulator-console/(compare|releases/tag)/',
 ]
 max_retries = 3
 timeout = 20
