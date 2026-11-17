@@ -17,6 +17,7 @@ import { useMutateOp, useOp } from "@/lib/aws-client";
 import { storage } from "@/lib/storage";
 
 import type { FnConfig } from "./functions";
+import { LambdaLogs } from "./logs-tab";
 import { decodeLog, handlerFile, isReady, RUNTIMES } from "./runtimes";
 import { fileToBase64, makeZip, toBase64 } from "./zip";
 
@@ -42,6 +43,7 @@ export function LambdaFunctionView({ fn }: { fn: string }) {
   const updateCode = useMutateOp("lambda", "UpdateFunctionCode");
   const updateConfig = useMutateOp("lambda", "UpdateFunctionConfiguration");
 
+  const [tab, setTab] = useState("invoke");
   const [payload, setPayload] = useState("{}");
   const [result, setResult] = useState<{ out: InvokeOut; ms: number } | null>(null);
   const [saved, setSaved] = useState<SavedEvent[]>([]);
@@ -148,10 +150,11 @@ export function LambdaFunctionView({ fn }: { fn: string }) {
       {!c ? (
         <Skeleton className="h-40" />
       ) : (
-        <Tabs defaultValue="invoke">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
             <TabsTrigger value="invoke">Invoke</TabsTrigger>
             <TabsTrigger value="code">Code</TabsTrigger>
+            <TabsTrigger value="logs">Logs</TabsTrigger>
             <TabsTrigger value="config">Configuration</TabsTrigger>
           </TabsList>
 
@@ -198,6 +201,11 @@ export function LambdaFunctionView({ fn }: { fn: string }) {
                 <span className="text-xs text-muted-foreground">Waiting for the function to become active…</span>
               )}
               {result && <span className="text-xs text-muted-foreground">{result.ms} ms</span>}
+              {result && (
+                <Button size="sm" variant="ghost" onClick={() => setTab("logs")}>
+                  See in Logs
+                </Button>
+              )}
             </div>
             {result && (
               <div className="grid gap-3" data-testid="invoke-result">
@@ -257,6 +265,10 @@ export function LambdaFunctionView({ fn }: { fn: string }) {
                 Upload a .zip
               </Button>
             </div>
+          </TabsContent>
+
+          <TabsContent value="logs">
+            <LambdaLogs fn={fn} />
           </TabsContent>
 
           <TabsContent value="config">
