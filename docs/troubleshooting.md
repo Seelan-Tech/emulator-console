@@ -57,6 +57,10 @@ The tag appears only for targets that read the emulator's own credential files, 
 2. The credentials folder is mounted into the console and `ALLOW_LOCAL_CREDENTIAL_FILES` is `true`.
 3. `~/.aws/emulator/<port>/version` exists. If not, the emulator was started from an image that predates the feature (or without the entrypoint): rebuild the emulator image and restart it, or write the file yourself, see [Emulator setup](emulator-setup.md#showing-the-version-in-the-console).
 
+## Which version am I running?
+
+The version is shown in the header, next to the name (click it for the **About** dialog). A tagged release shows `v0.2.0`; a build of any other commit shows `0.2.0+abc1234`, and a build that does not know its commit shows `0.2.0 (dev)`, so a build of `main` is never mistaken for a release. **Copy details** in the dialog puts the console version, commit and emulator version on the clipboard, ready to paste into a bug report. `GET /api/health` returns the same `version` and `revision`. To record the commit in a local build: `GIT_SHA=$(git rev-parse HEAD) docker compose up -d --build`.
+
 ## Known limitations
 
 - Fixtures replay calls, not state. A step that depends on an id returned by an earlier step must be edited by hand.

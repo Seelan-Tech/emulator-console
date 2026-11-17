@@ -9,6 +9,10 @@ FROM --platform=$BUILDPLATFORM node:24-slim AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules node_modules
 COPY . .
+# Which commit this is, and whether it is the tagged release: shown in the About dialog (see next.config.ts).
+ARG GIT_SHA=""
+ARG RELEASE_BUILD=""
+ENV GIT_SHA=$GIT_SHA RELEASE_BUILD=$RELEASE_BUILD
 RUN npm run build
 
 FROM node:24-slim

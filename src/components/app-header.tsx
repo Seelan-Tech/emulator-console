@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
+import { AboutDialog } from "@/components/about-dialog";
 import { CommandPalette } from "@/components/command-palette";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +14,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { buildInfo, versionLabel } from "@/lib/app-version";
 import { cn } from "@/lib/utils";
 
 export function AppHeader({ docsUrl }: { docsUrl?: string }) {
   const path = usePathname();
   const { theme, setTheme } = useTheme();
   const [palette, setPalette] = useState(false);
+  const [about, setAbout] = useState(false);
+  const label = versionLabel(buildInfo());
 
   // Ctrl/Cmd+K opens the palette from anywhere (and closes it again).
   useEffect(() => {
@@ -51,6 +55,15 @@ export function AppHeader({ docsUrl }: { docsUrl?: string }) {
           <Boxes className="size-5 text-primary" />
           <span className="hidden sm:inline">Emulator Console</span>
         </Link>
+        <button
+          type="button"
+          onClick={() => setAbout(true)}
+          aria-label={`About Emulator Console, version ${label}`}
+          data-testid="app-version"
+          className="-ml-1 hidden rounded px-1 text-xs text-muted-foreground hover:text-foreground sm:inline"
+        >
+          {label}
+        </button>
         <nav className="ml-2 flex items-center gap-1" aria-label="Main">
           {links.map((l) => (
             <Link
@@ -111,6 +124,7 @@ export function AppHeader({ docsUrl }: { docsUrl?: string }) {
         </div>
       </div>
       <CommandPalette open={palette} onOpenChange={setPalette} />
+      <AboutDialog open={about} onOpenChange={setAbout} docsUrl={docsUrl} />
     </header>
   );
 }

@@ -63,3 +63,21 @@ test("the Help button opens the guide of the running version", async ({ page }) 
     `https://github.com/Seelan-Tech/emulator-console/tree/v${version}/docs`,
   );
 });
+
+test("the header shows the console version and the About dialog has details to paste into a bug report", async ({
+  page,
+  request,
+}) => {
+  const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+    version: string;
+  };
+  await page.goto("/");
+  await page.getByTestId("app-version").click();
+  const dialog = page.getByRole("dialog", { name: "About Emulator Console" });
+  await expect(dialog.getByTestId("about-version")).toContainText(version);
+  await expect(dialog.getByTestId("about-details")).toContainText(/Emulator \(Local emulator\): \d+\.\d+\.\d+/);
+  await expect(dialog.getByRole("button", { name: "Copy details" })).toBeVisible();
+
+  const health = await (await request.get("/api/health")).json();
+  expect(health).toMatchObject({ ok: true, version });
+});
