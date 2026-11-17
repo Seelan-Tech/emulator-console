@@ -1,7 +1,13 @@
+import { readFileSync } from "node:fs";
+
 import type { NextConfig } from "next";
+
+// The version the build was cut from, for the Help button (it opens the guide of this release).
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
 
 const config: NextConfig = {
   output: "standalone",
+  env: { NEXT_PUBLIC_APP_VERSION: version },
   poweredByHeader: false,
   async headers() {
     return [

@@ -81,6 +81,8 @@ npm run docs:screenshots
 
 This starts a throwaway stack, seeds example resources and photographs the main screens in light and dark. Re-run it after a UI change and commit the images. CI lints the Markdown and checks every link (`.github/workflows/docs.yml`).
 
+Docs are versioned by git tag: every release tag contains the guide as it was, and the Help button opens `docs/` at the running version (`lib/docs-url.ts`, version from `package.json` at build time; `DOCS_URL` overrides it). When a change alters behaviour a user may rely on, say "since x.y.z" in the page.
+
 ## Releasing
 
 1. Make sure `main` is green, and move the `CHANGELOG.md` entries from "Unreleased" under the new version.

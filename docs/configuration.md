@@ -12,7 +12,7 @@ A ready-to-edit template is in [`.env.example`](../.env.example).
 | --- | --- | --- |
 | `DATA_DIR` | `./data` | Directory holding the console's SQLite database (emulator-console.db). Created if missing. In Compose it is /data, on a volume. |
 | `APP_SECRET` | **required** | At least 32 random characters. Encrypts target secrets at rest; rotating it invalidates stored target secrets. Required. |
-| `DOCS_URL` | `https://github.com/Seelan-Tech/emulator-console/tree/main/docs` | Where the Help button in the header points. Set it to your own copy of the user guide if you keep one. |
+| `DOCS_URL` | unset | Where the Help button in the header points. Unset, it opens the user guide of the version you run (its release tag on GitHub). Set it to your own copy of the guide if you keep one. |
 | `LOG_LEVEL` | `info` | Verbosity of server logs: debug, info, warn or error. |
 
 ## Access
