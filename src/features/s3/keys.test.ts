@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { breadcrumbs, chunk, displayName, previewKind, s3Uri, sortObjects, validateBucketName } from "./keys";
+import {
+  breadcrumbs,
+  bucketRegionFrom,
+  chunk,
+  displayName,
+  previewKind,
+  s3Uri,
+  sortObjects,
+  validateBucketName,
+} from "./keys";
 
 test("breadcrumbs build cumulative prefixes", () => {
   assert.deepEqual(breadcrumbs(""), []);
@@ -49,4 +58,12 @@ test("preview kinds and chunking", () => {
   assert.equal(previewKind("pic.PNG"), "image");
   assert.equal(previewKind("archive.zip"), null);
   assert.deepEqual(chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+});
+
+test("a bucket's region comes from its LocationConstraint", () => {
+  assert.equal(bucketRegionFrom(null), "us-east-1");
+  assert.equal(bucketRegionFrom(undefined), "us-east-1");
+  assert.equal(bucketRegionFrom(""), "us-east-1");
+  assert.equal(bucketRegionFrom("EU"), "eu-west-1");
+  assert.equal(bucketRegionFrom("us-west-2"), "us-west-2");
 });

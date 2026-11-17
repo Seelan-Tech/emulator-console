@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- S3 bucket list: a **Region** column and an **Only this region** switch, because `ListBuckets` returns buckets of every region.
+
 ### Changed
 
 - Bumped the AWS Emulator to 1.0.471.

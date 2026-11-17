@@ -19,6 +19,12 @@ export function validateBucketName(name: string): string | null {
   return null;
 }
 
+// GetBucketLocation answers with a LocationConstraint: empty/null means us-east-1 and the legacy "EU" means eu-west-1.
+export function bucketRegionFrom(locationConstraint: string | null | undefined): string {
+  if (!locationConstraint) return "us-east-1";
+  return locationConstraint === "EU" ? "eu-west-1" : locationConstraint;
+}
+
 export function validateFolderName(name: string): string | null {
   const n = name.trim();
   if (!n) return "Enter a name";
