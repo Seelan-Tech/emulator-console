@@ -49,7 +49,7 @@ The console has no login: it is a tool for your own machine. Every port is publi
 
 ## Using the AWS CLI alongside the console
 
-The emulator writes its credentials, CA and AWS config to `~/.aws/emulator/9297/` on your machine. Point the CLI at it:
+The emulator writes its credentials, CA and AWS config to `~/.aws/emulator/9297/` on your machine. Point the CLI at it (the target overview has a **Use with the AWS CLI** button that shows this block for your target, ready to copy):
 
 ```sh
 export AWS_ENDPOINT_URL=https://127.0.0.1:9297 \

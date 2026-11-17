@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { addTopicToQueuePolicy, arnName, isFifoTopic, queueArnFromUrl, supportsRawDelivery } from "./logic";
+import {
+  addTopicToQueuePolicy,
+  arnName,
+  deliversOnEmulator,
+  isFifoTopic,
+  PROTOCOLS,
+  queueArnFromUrl,
+  supportsRawDelivery,
+} from "./logic";
 
 const topic = "arn:aws:sns:us-east-1:000000000000:orders";
 const queue = "arn:aws:sqs:us-east-1:000000000000:orders-q";
@@ -39,4 +47,8 @@ test("a different topic adds a second statement", () => {
 test("raw delivery only for sqs and http(s)", () => {
   assert.equal(supportsRawDelivery("sqs"), true);
   assert.equal(supportsRawDelivery("email"), false);
+});
+
+test("only sqs and lambda subscriptions deliver on the emulator", () => {
+  assert.deepEqual(PROTOCOLS.filter(deliversOnEmulator), ["sqs", "lambda"]);
 });

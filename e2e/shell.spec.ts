@@ -41,3 +41,12 @@ test("region choice is remembered per target", async ({ page, target }) => {
   await expect(page.getByLabel("Region")).toHaveValue("eu-west-1");
   await page.getByLabel("Region").selectOption("us-east-1");
 });
+
+test("the overview offers the AWS CLI exports for a local emulator", async ({ page, target }) => {
+  await page.goto(target.base);
+  await page.getByRole("button", { name: "Use with the AWS CLI" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("AWS_SHARED_CREDENTIALS_FILE=~/.aws/emulator/");
+  await expect(dialog).toContainText("unset AWS_ACCESS_KEY_ID");
+  await expect(dialog).toContainText("regenerated every time the emulator restarts");
+});

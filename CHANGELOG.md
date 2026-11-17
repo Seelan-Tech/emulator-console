@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- A **Use with the AWS CLI** button on the target overview with the exports for that emulator, ready to copy.
+
+### Changed
+
+- The SNS subscribe dialog marks `http`, `https`, `email` and `sms` as "will not deliver", because the emulator never confirms those subscriptions.
+
 ## [0.2.0] - 2026-11-16
 
 ### Added

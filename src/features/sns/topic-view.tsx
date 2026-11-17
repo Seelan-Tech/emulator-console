@@ -29,6 +29,7 @@ import { useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
 import {
   addTopicToQueuePolicy,
   arnName,
+  deliversOnEmulator,
   endpointHint,
   isFifoTopic,
   type Protocol,
@@ -248,7 +249,8 @@ export function SnsTopicView({ topic }: { topic: string }) {
               </Table>
             )}
             <p className="mt-2 text-xs text-muted-foreground">
-              Email, SMS and HTTP(S) subscriptions stay pending: the emulator doesn&apos;t send confirmation messages.
+              Email, SMS and HTTP(S) subscriptions stay pending and receive nothing: the emulator doesn&apos;t send
+              confirmation messages.
             </p>
           </TabsContent>
 
@@ -348,9 +350,17 @@ function SubscribeDialog({
               }}
             >
               {PROTOCOLS.map((p) => (
-                <option key={p}>{p}</option>
+                <option key={p} value={p}>
+                  {deliversOnEmulator(p) ? p : `${p} (will not deliver)`}
+                </option>
               ))}
             </Select>
+            {!deliversOnEmulator(protocol) && (
+              <p className="text-xs text-warning" role="note">
+                The emulator never confirms {protocol} subscriptions, so published messages are not delivered to them.
+                Use sqs or lambda to receive messages.
+              </p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="sub-ep">Endpoint</Label>
