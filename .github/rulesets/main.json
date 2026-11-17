@@ -31,7 +31,7 @@
           { "context": "Secret scan" },
           { "context": "Dependency audit" },
           { "context": "Image scan" },
-          { "context": "Analyze (JavaScript and TypeScript)" },
+          { "context": "Analyze (javascript-typescript)" },
           { "context": "Dependency review" }
         ]
       }
