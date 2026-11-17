@@ -51,6 +51,7 @@ test("the overview offers the AWS CLI exports for a local emulator", async ({ pa
   await expect(dialog).toContainText("AWS_SHARED_CREDENTIALS_FILE=~/.aws/emulator/");
   await expect(dialog).toContainText("unset AWS_ACCESS_KEY_ID");
   await expect(dialog).toContainText("regenerated every time the emulator restarts");
+});
 
 test("the Help button opens the guide of the running version", async ({ page }) => {
   const { version } = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
