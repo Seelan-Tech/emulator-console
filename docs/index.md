@@ -6,7 +6,7 @@ Emulator Console is a web app for operating the AWS Emulator: browse and edit S3
 ![The target overview](images/overview-dark.png#gh-dark-mode-only)
 
 > **Versions.** These pages describe the latest release; `main` may be ahead. The **Help** button in the app opens the guide for the version you run, and any release's guide is at `https://github.com/Seelan-Tech/emulator-console/tree/v<version>/docs` (see the [changelog](../CHANGELOG.md) for what changed between versions). Changes are marked "since x.y.z" where it matters.
-
+>
 > **Scope.** This is a **local developer companion**: you run it on your own machine, next to your own emulator, while you build and test an application against it. It is not designed to be hosted, shared over a network or exposed to the internet. The emulator keeps everything in memory and is wiped on every restart, so there is nothing to host; the console exists to make that workflow comfortable.
 
 ## Where to start
