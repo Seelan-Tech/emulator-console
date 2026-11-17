@@ -27,7 +27,7 @@ The stack builds the emulator image from AWS's own signed package at a pinned ve
 
 ## Documentation
 
-The full **[user guide](docs/index.md)**:
+The full **[user guide](docs/index.md)** (these pages describe the latest release; `main` may be ahead). To read the guide for the version you run, open the repository at that release's tag (`https://github.com/Seelan-Tech/emulator-console/tree/v<version>/docs`); the **Help** button in the app does exactly that:
 
 - [Getting started](docs/getting-started.md) and [concepts](docs/concepts.md)
 - Service guides: [S3](docs/services/s3.md), [DynamoDB](docs/services/dynamodb.md), [SQS](docs/services/sqs.md), [Lambda](docs/services/lambda.md), [SNS](docs/services/sns.md), [Secrets Manager](docs/services/secrets-manager.md) and [the rest](docs/services/other-services.md)

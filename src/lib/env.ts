@@ -27,7 +27,7 @@ export const envSchema = z.object({
   // core
   DATA_DIR: str("./data"),
   APP_SECRET: z.preprocess(empty, z.string().min(32, "APP_SECRET must be at least 32 characters").optional()),
-  DOCS_URL: str("https://github.com/Seelan-Tech/emulator-console/tree/main/docs"),
+  DOCS_URL: optionalStr,
   LOG_LEVEL: z.preprocess(empty, z.enum(["debug", "info", "warn", "error"]).default("info")),
   // access
   LOCAL_ALLOWED_HOSTS: csv(""),
@@ -93,8 +93,8 @@ export const ENV_DOCS: EnvDoc[] = [
     name: "DOCS_URL",
     group: "Core",
     description:
-      "Where the Help button in the header points. Set it to your own copy of the user guide if you keep one.",
-    default: "https://github.com/Seelan-Tech/emulator-console/tree/main/docs",
+      "Where the Help button in the header points. Unset, it opens the user guide of the version you run (its release tag on GitHub). Set it to your own copy of the guide if you keep one.",
+    example: "https://docs.example.com/emulator-console",
   },
   {
     name: "LOG_LEVEL",

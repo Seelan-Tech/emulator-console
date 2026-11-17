@@ -13,6 +13,8 @@ All notable changes to this project are documented here. The format is based on
 ### Changed
 
 - The SNS subscribe dialog marks `http`, `https`, `email` and `sms` as "will not deliver", because the emulator never confirms those subscriptions.
+- The **Help** button opens the user guide of the version you run (its release tag) instead of `main`. `DOCS_URL` still overrides it.
+- Release notes link to the guide for that version.
 
 ## [0.2.0] - 2026-11-16
 

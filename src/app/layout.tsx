@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { AppHeader } from "@/components/app-header";
 import { Providers } from "@/components/providers";
+import { docsUrl } from "@/lib/docs-url";
 import { readEnv } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <AppHeader docsUrl={readEnv().DOCS_URL} />
+            <AppHeader docsUrl={docsUrl(process.env.NEXT_PUBLIC_APP_VERSION, readEnv().DOCS_URL)} />
             {children}
           </div>
         </Providers>
