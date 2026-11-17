@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
 ### Added
 
 - S3 bucket list: a **Region** column and an **Only this region** switch, because `ListBuckets` returns buckets of every region.
@@ -30,5 +32,6 @@ All notable changes to this project are documented here. The format is based on
 - Docker Compose stack: the emulator (pinned to a version and verified against AWS's signature, telemetry off by default) and the console, with its data in a SQLite file.
 - User guide in `docs/`.
 
-[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Seelan-Tech/emulator-console/releases/tag/v0.1.0
