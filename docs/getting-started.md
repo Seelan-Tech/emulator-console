@@ -61,4 +61,12 @@ export AWS_ENDPOINT_URL=https://127.0.0.1:9297 \
 aws s3 ls
 ```
 
-Anything you create with the CLI shows up in the console, and the other way round. The CLI is not recorded, though; only actions taken in the console are.
+Anything you create with the CLI shows up in the console, and the other way round. The CLI is not recorded, though; only actions taken in the console are (see [what a fixture cannot capture](fixtures.md#what-a-fixture-cannot-capture)).
+
+**After an emulator restart the keys and the CA are new.** A shell that still has the old ones fails with an authentication or TLS error. Open a new shell or run the exports again, and unset any keys left in the environment, because they take priority over the credentials file:
+
+```sh
+unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+```
+
+The console follows the new keys on its own; only your own shells and scripts need this.

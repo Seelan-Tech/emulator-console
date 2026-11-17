@@ -17,6 +17,12 @@ A fixture is a recipe for rebuilding state: an ordered list of API calls. Fixtur
 
 What is recorded: successful state-changing calls from the screens and from the operation runner. What is not: reads, Lambda `Invoke`, receiving or deleting SQS messages, S3 uploads, and anything done with the AWS CLI.
 
+### What a fixture cannot capture
+
+Recording happens in the console, in your browser, so only what you do in the console is seen. Calls made with the AWS CLI, an SDK or a script go straight to the emulator, which has no API that lists or logs what it holds, so there is nothing for the console to read back. Setup done that way is **not in the fixture**, and a replay will not rebuild it.
+
+To get it into a fixture, repeat it in the console while **Record** is on, or add the steps by hand in the editor (fixtures are plain JSON). S3 uploads are not recorded either, so a replay recreates a bucket but not the files in it.
+
 The recorder adds the pauses and retries that make a replay reliable, because the emulator makes some resources usable only after a moment:
 
 | Operation | Added |
@@ -68,6 +74,8 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - Step outputs are not stored.
 
 Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step (a queue URL, say) needs editing by hand to use a name you control.
+
+Every recorded step runs, in order, including ones that undo each other: a bucket you created and later deleted is created and deleted again. A recorded `SendMessage` or `Publish` is sent again. Right after a restart the emulator may still refuse a step, for example when a queue name was deleted less than 60 seconds ago; use a step's retry settings or run the fixture again.
 
 ## Baseline fixture and automatic replay
 
