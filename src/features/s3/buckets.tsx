@@ -1,4 +1,5 @@
 "use client";
+import { useQuery } from "@tanstack/react-query";
 import { HardDrive, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -16,34 +17,72 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { useMutateOp, useOp } from "@/lib/aws-client";
+import { callOp, useMutateOp } from "@/lib/aws-client";
 import { timeAgo } from "@/lib/utils";
 
 import type { Bucket } from "./hooks";
-import { validateBucketName } from "./keys";
+import { bucketRegionFrom, validateBucketName } from "./keys";
+
+type Row = Bucket & { region?: string };
 
 export function S3Buckets() {
-  const { tid } = useTarget();
+  const { tid, region } = useTarget();
   const base = `/t/${tid}/s3`;
-  const list = useOp<{ Buckets?: Bucket[] }>("s3", "ListBuckets");
+  const [onlyHere, setOnlyHere] = useState(false);
+  // ListBuckets is account-wide (every region), like AWS. "Only this region" uses its BucketRegion filter; otherwise
+  // each bucket's region is read with GetBucketLocation, sequentially: the emulator drops connections under bursts.
+  const list = useQuery({
+    queryKey: [tid, "s3", "buckets", region, onlyHere],
+    queryFn: async (): Promise<Row[]> => {
+      const { Buckets = [] } = await callOp<{ Buckets?: Bucket[] }>(
+        tid,
+        "s3",
+        "ListBuckets",
+        onlyHere ? { BucketRegion: region } : {},
+        region,
+      );
+      const rows: Row[] = [];
+      for (const b of Buckets) {
+        if (onlyHere) {
+          rows.push({ ...b, region });
+          continue;
+        }
+        const loc = await callOp<{ LocationConstraint?: string | null }>(
+          tid,
+          "s3",
+          "GetBucketLocation",
+          { Bucket: b.Name },
+          region,
+        ).catch(() => null);
+        rows.push({ ...b, region: loc ? bucketRegionFrom(loc.LocationConstraint) : undefined });
+      }
+      return rows;
+    },
+  });
   const create = useMutateOp("s3", "CreateBucket");
   const del = useMutateOp("s3", "DeleteBucket");
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
   const nameError = name ? validateBucketName(name) : null;
-  const buckets = list.data?.Buckets ?? [];
+  const buckets = list.data ?? [];
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6">
       <PageHeader
         title="S3 buckets"
-        description="Object storage. Each bucket on this emulator holds up to 64 MiB."
+        description="Object storage. Each bucket on this emulator holds up to 64 MiB. Buckets of every region are listed."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus /> Create bucket
-          </Button>
+          <>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Switch checked={onlyHere} onCheckedChange={setOnlyHere} aria-label="Only this region" /> Only {region}
+            </label>
+            <Button onClick={() => setCreating(true)}>
+              <Plus /> Create bucket
+            </Button>
+          </>
         }
       />
       {list.isLoading ? (
@@ -60,7 +99,7 @@ export function S3Buckets() {
         <EmptyState
           icon={<HardDrive />}
           title="No buckets"
-          description="Create a bucket to start storing objects."
+          description={onlyHere ? `No buckets in ${region}.` : "Create a bucket to start storing objects."}
           action={
             <Button onClick={() => setCreating(true)}>
               <Plus /> Create bucket
@@ -72,6 +111,7 @@ export function S3Buckets() {
           <THead>
             <TR>
               <TH>Name</TH>
+              <TH>Region</TH>
               <TH>Created</TH>
               <TH className="text-right">Actions</TH>
             </TR>
@@ -87,6 +127,7 @@ export function S3Buckets() {
                     {b.Name}
                   </Link>
                 </TD>
+                <TD className="text-muted-foreground">{b.region ?? "—"}</TD>
                 <TD className="text-muted-foreground">{timeAgo(b.CreationDate)}</TD>
                 <TD className="text-right">
                   <Button
@@ -108,7 +149,7 @@ export function S3Buckets() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create bucket</DialogTitle>
-            <DialogDescription>Bucket names are lowercase and unique.</DialogDescription>
+            <DialogDescription>Bucket names are lowercase and unique. It is created in {region}.</DialogDescription>
           </DialogHeader>
           <form
             className="grid gap-3"

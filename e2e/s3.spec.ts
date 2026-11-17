@@ -106,3 +106,32 @@ test("S3: a file above 8 MB uploads (multipart) and downloads byte-identical", a
     await call("s3", "DeleteBucket", { Bucket: bucket }).catch(() => {});
   }
 });
+
+test("S3: buckets of every region are listed with their region, and can be narrowed to the selected one", async ({
+  page,
+  target,
+}) => {
+  const bucket = uniq("e2e-region");
+  const inRegion = (op: string, input: unknown) =>
+    page.request.post(`/api/targets/${target.tid}/s3/${op}?region=us-west-2`, { data: input });
+  try {
+    expect((await (await inRegion("CreateBucket", { Bucket: bucket })).json()).ok).toBe(true);
+
+    await page.goto(`${target.base}/s3`);
+    await page.getByLabel("Region", { exact: true }).selectOption("us-east-1");
+    const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: bucket }) });
+    await expect(row).toContainText("us-west-2");
+
+    await page.getByLabel("Only this region").click();
+    await expect(page.getByRole("link", { name: bucket })).toHaveCount(0);
+
+    await page.getByLabel("Region", { exact: true }).selectOption("us-west-2");
+    await expect(page.getByRole("link", { name: bucket })).toBeVisible();
+  } finally {
+    await page
+      .getByLabel("Region", { exact: true })
+      .selectOption("us-east-1")
+      .catch(() => {});
+    await inRegion("DeleteBucket", { Bucket: bucket }).catch(() => {});
+  }
+});
