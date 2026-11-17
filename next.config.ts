@@ -7,7 +7,12 @@ const { version } = JSON.parse(readFileSync(new URL("./package.json", import.met
 
 const config: NextConfig = {
   output: "standalone",
-  env: { NEXT_PUBLIC_APP_VERSION: version },
+  env: {
+    NEXT_PUBLIC_APP_VERSION: version,
+    // Set by the image build: the commit, and whether this build is the tagged release.
+    NEXT_PUBLIC_APP_REVISION: process.env.GIT_SHA ?? "",
+    NEXT_PUBLIC_APP_RELEASE: process.env.RELEASE_BUILD ?? "",
+  },
   poweredByHeader: false,
   async headers() {
     return [

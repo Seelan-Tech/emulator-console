@@ -32,6 +32,8 @@ services:
   console:
     build:
       context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-} # optional: GIT_SHA=$(git rev-parse HEAD) docker compose up -d --build
     image: emulator-console
     depends_on:
       emulator:
