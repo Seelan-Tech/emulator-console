@@ -7,6 +7,7 @@ import {
   arnName,
   deliversOnEmulator,
   isFifoTopic,
+  lambdaStatementId,
   PROTOCOLS,
   queueArnFromUrl,
   supportsRawDelivery,
@@ -51,4 +52,14 @@ test("raw delivery only for sqs and http(s)", () => {
 
 test("only sqs and lambda subscriptions deliver on the emulator", () => {
   assert.deepEqual(PROTOCOLS.filter(deliversOnEmulator), ["sqs", "lambda"]);
+});
+
+test("the Lambda permission statement id names the region and the topic, and stays a valid id", () => {
+  assert.equal(lambdaStatementId("arn:aws:sns:us-west-1:000000000000:test"), "sns-us-west-1-test");
+  assert.equal(lambdaStatementId("arn:aws:sns:us-east-1:000000000000:orders.fifo"), "sns-us-east-1-orders-fifo");
+  assert.notEqual(
+    lambdaStatementId("arn:aws:sns:us-east-1:000000000000:test"),
+    lambdaStatementId("arn:aws:sns:us-west-1:000000000000:test"),
+  );
+  assert.ok(lambdaStatementId(`arn:aws:sns:us-east-1:000000000000:${"a".repeat(200)}`).length <= 100);
 });

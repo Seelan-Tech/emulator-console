@@ -7,6 +7,14 @@ export function queueArnFromUrl(url: string, region: string): string {
   return `arn:aws:sqs:${region}:${p[3]}:${p[4]}`;
 }
 
+// A Lambda function only accepts invocations from SNS if its resource policy allows the topic (a missing permission
+// fails silently: nothing is delivered and no log group appears). The statement id includes the region, so topics of
+// the same name in two regions get their own statements; ids allow letters, digits, hyphens and underscores.
+export function lambdaStatementId(topicArn: string): string {
+  const [, , , region, , name] = topicArn.split(":");
+  return `sns-${region}-${name}`.replace(/[^\w-]/g, "-").slice(0, 100);
+}
+
 type Statement = { Sid?: string; [k: string]: unknown };
 type Policy = { Version?: string; Statement?: Statement[] };
 
