@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- Bumped the AWS Emulator to 1.0.471.
+
+### Documentation
+
+- Spelled out what a fixture cannot capture (CLI, SDK and script calls, S3 uploads), what a replay does, and that CLI credentials change on every emulator restart.
+
 ## [0.1.0] - 2026-11-15
 
 ### Added

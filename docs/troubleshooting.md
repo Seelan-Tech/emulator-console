@@ -60,6 +60,7 @@ The tag appears only for targets that read the emulator's own credential files, 
 ## Known limitations
 
 - Fixtures replay calls, not state. A step that depends on an id returned by an earlier step must be edited by hand.
+- Calls made with the AWS CLI, an SDK or a script are not recorded, only console actions are: see [what a fixture cannot capture](fixtures.md#what-a-fixture-cannot-capture).
 - S3 uploads are not recorded. Lambda zips are recorded as base64, which can be large. `DeleteMessage` is not recorded.
 - The DynamoDB query builder covers Query and Scan with key conditions and filters. There is no `IN` operator, no projection expression and no parallel scan; use the operation runner.
 - Restart detection needs a target that reads the emulator's credential files.
