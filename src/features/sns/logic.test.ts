@@ -7,6 +7,7 @@ import {
   arnName,
   arnRegion,
   deliversOnEmulator,
+  endpointProblem,
   isFifoTopic,
   lambdaStatementId,
   policyAllowsTopic,
@@ -133,4 +134,20 @@ test("subscription health: missing endpoint, no permission, permission", () => {
   assert.equal(subscriptionHealth("lambda", { exists: true, policy: allow() }, T), "delivers");
   // the action depends on the protocol
   assert.equal(subscriptionHealth("sqs", { exists: true, policy: allow() }, T), "needs-permission");
+});
+
+test("endpointProblem explains what an http or https endpoint is missing", () => {
+  assert.equal(endpointProblem("http", "http://localhost:8080/hook?a=1&b=2"), undefined);
+  assert.equal(endpointProblem("https", "HTTPS://example.com/h"), undefined);
+  assert.equal(endpointProblem("http", "  http://example.com/h "), undefined); // trimmed before sending
+  assert.equal(endpointProblem("http", ""), undefined); // nothing typed yet
+  assert.match(endpointProblem("http", "example.com/hook")!, /starts with http:\/\//);
+  assert.match(endpointProblem("http", "localhost:8080/hook")!, /starts with http:\/\//);
+  assert.match(endpointProblem("http", "https://example.com/h")!, /choose the https protocol/);
+  assert.match(endpointProblem("https", "http://example.com/h")!, /choose the http protocol/);
+  assert.match(endpointProblem("http", "ftp://example.com/h")!, /ftp:\/\/ is not supported/);
+  assert.match(endpointProblem("http", "http://")!, /not a valid URL/);
+  // other protocols are not judged here
+  assert.equal(endpointProblem("sqs", "arn:aws:sqs:us-east-1:000000000000:q"), undefined);
+  assert.equal(endpointProblem("email", "nobody"), undefined);
 });

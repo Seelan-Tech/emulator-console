@@ -50,6 +50,24 @@ export const endpointHint: Record<Protocol, string> = {
 // The emulator never confirms these subscriptions (no confirmation message is sent), so nothing is delivered to them.
 export const deliversOnEmulator = (p: Protocol) => p === "sqs" || p === "lambda";
 
+// What SNS (and the emulator) reject about an endpoint before it ever gets a confirmation message: an http subscription
+// takes an http:// URL and an https one an https:// URL, nothing else. Undefined when the endpoint looks usable.
+export function endpointProblem(protocol: Protocol, endpoint: string): string | undefined {
+  const e = endpoint.trim();
+  if (!e || (protocol !== "http" && protocol !== "https")) return undefined;
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(e)?.[1]?.toLowerCase();
+  if (!scheme) return `An ${protocol} endpoint is a URL that starts with ${protocol}://`;
+  if (scheme !== "http" && scheme !== "https") return `${scheme}:// is not supported: use an http:// or https:// URL`;
+  if (scheme !== protocol)
+    return `This is an ${scheme}:// URL: choose the ${scheme} protocol for it (an ${protocol} subscription needs ${protocol}://)`;
+  try {
+    if (!new URL(e).hostname) throw new Error("no host");
+  } catch {
+    return "This is not a valid URL";
+  }
+  return undefined;
+}
+
 // Raw delivery only applies to endpoints that receive the message body directly.
 export const supportsRawDelivery = (p: Protocol) => p === "sqs" || p === "http" || p === "https";
 

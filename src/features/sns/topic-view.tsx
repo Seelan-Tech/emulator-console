@@ -31,6 +31,7 @@ import {
   arnName,
   deliversOnEmulator,
   endpointHint,
+  endpointProblem,
   type Health,
   isFifoTopic,
   type Protocol,
@@ -386,16 +387,19 @@ function SubscribeDialog({
         ? (fns.data?.Functions ?? []).map((f) => f.FunctionArn)
         : [];
 
+  const problem = endpointProblem(protocol, endpoint);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const target = endpoint.trim(); // a leading space is rejected as an invalid endpoint
     setBusy(true);
     try {
-      if (protocol === "sqs" && allow) await allowTopicOnQueue(runOp, endpoint, topicArn);
-      if (protocol === "lambda" && allowFn) await allowTopicOnFunction(runOp, endpoint, topicArn);
+      if (protocol === "sqs" && allow) await allowTopicOnQueue(runOp, target, topicArn);
+      if (protocol === "lambda" && allowFn) await allowTopicOnFunction(runOp, target, topicArn);
       await runOp("sns", "Subscribe", {
         TopicArn: topicArn,
         Protocol: protocol,
-        Endpoint: endpoint,
+        Endpoint: target,
         ReturnSubscriptionArn: true,
         ...(raw && supportsRawDelivery(protocol) ? { Attributes: { RawMessageDelivery: "true" } } : {}),
       });
@@ -449,7 +453,14 @@ function SubscribeDialog({
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
               autoComplete="off"
+              aria-invalid={!!problem}
+              aria-describedby={problem ? "sub-ep-problem" : undefined}
             />
+            {problem && (
+              <p id="sub-ep-problem" className="text-xs text-destructive" role="alert">
+                {problem}
+              </p>
+            )}
             <datalist id="sub-suggestions">
               {suggestions.map((s) => (
                 <option key={s} value={s} />
@@ -488,7 +499,7 @@ function SubscribeDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={!endpoint || busy}>{busy && <Spinner />} Subscribe</Button>
+            <Button disabled={!endpoint.trim() || !!problem || busy}>{busy && <Spinner />} Subscribe</Button>
           </DialogFooter>
         </form>
       </DialogContent>

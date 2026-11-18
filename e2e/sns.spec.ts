@@ -232,3 +232,34 @@ test("SNS: subscription health flags a function and a queue that do not allow th
     await call("logs", "DeleteLogGroup", { logGroupName: `/aws/lambda/${fn}` }).catch(() => {});
   }
 });
+
+test("SNS: an http endpoint is checked in the dialog before it is sent", async ({ page, target, call }) => {
+  const topic = uniq("e2e-http");
+  let topicArn: string | undefined;
+  try {
+    topicArn = (await call("sns", "CreateTopic", { Name: topic })).TopicArn as string;
+    await page.goto(`${target.base}/sns/${encodeURIComponent(topic)}`);
+    await page.getByRole("tab", { name: /Subscriptions/ }).click();
+    await page.getByRole("button", { name: "Subscribe", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    const submit = dialog.getByRole("button", { name: "Subscribe" });
+    await page.getByLabel("Protocol").selectOption("http");
+
+    await page.getByLabel("Endpoint").fill("example.com/hook");
+    await expect(dialog.getByRole("alert")).toContainText("starts with http://");
+    await expect(submit).toBeDisabled();
+    await page.getByLabel("Endpoint").fill("https://example.com/hook");
+    await expect(dialog.getByRole("alert")).toContainText("choose the https protocol");
+    await expect(submit).toBeDisabled();
+
+    // a valid URL (surrounding spaces are trimmed) subscribes and stays pending
+    await page.getByLabel("Endpoint").fill("  http://localhost:8080/hook ");
+    await expect(dialog.getByRole("alert")).toHaveCount(0);
+    await submit.click();
+    await expectToast(page, "Subscribed");
+    await expect(page.getByRole("cell", { name: "http://localhost:8080/hook", exact: true })).toBeVisible();
+    await expect(page.getByText("pending confirmation")).toBeVisible();
+  } finally {
+    if (topicArn) await call("sns", "DeleteTopic", { TopicArn: topicArn }).catch(() => {});
+  }
+});
