@@ -17,6 +17,10 @@ The **Code** tab edits the handler source for inline functions and saves it with
 
 **Configuration** edits the **Handler**, **Memory**, **Timeout** and environment variables (as JSON) and saves with **Save configuration**. Invalid JSON is reported before anything is sent.
 
+## Regions
+
+On this emulator a function is listed (and can be invoked) from every region; its ARN keeps the region it was created in. SNS topics and SQS queues are per region, so the permission that lets a topic invoke a function must name the topic's own ARN, region included (the SNS subscribe dialog does this for you).
+
 ## Invoking
 
 Write a **Test event** (JSON) and press **Invoke**. The **Response** shows the status code, the returned payload and, because the console asks for the execution log, the function's **Log** output. A function that raises an error shows the error type and message, with the status of the invocation. The emulator really runs your code.

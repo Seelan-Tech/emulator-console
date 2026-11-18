@@ -24,7 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AttrRow, toMessageAttributes } from "@/features/sqs/logic";
-import { useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
+import { OpError, useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
 
 import {
   addTopicToQueuePolicy,
@@ -32,6 +32,7 @@ import {
   deliversOnEmulator,
   endpointHint,
   isFifoTopic,
+  lambdaStatementId,
   type Protocol,
   PROTOCOLS,
   queueArnFromUrl,
@@ -282,6 +283,7 @@ function SubscribeDialog({
   const [endpoint, setEndpoint] = useState("");
   const [raw, setRaw] = useState(false);
   const [allow, setAllow] = useState(true);
+  const [allowFn, setAllowFn] = useState(true);
   const [busy, setBusy] = useState(false);
 
   // Endpoint suggestions: this target's queues and functions.
@@ -313,6 +315,19 @@ function SubscribeDialog({
         await runOp("sqs", "SetQueueAttributes", {
           QueueUrl,
           Attributes: { Policy: addTopicToQueuePolicy(Attributes?.Policy, endpoint, topicArn) },
+        });
+      }
+      if (protocol === "lambda" && allowFn) {
+        // Without this permission SNS cannot invoke the function, and nothing tells you so.
+        await runOp("lambda", "AddPermission", {
+          FunctionName: endpoint,
+          StatementId: lambdaStatementId(topicArn),
+          Action: "lambda:InvokeFunction",
+          Principal: "sns.amazonaws.com",
+          SourceArn: topicArn,
+        }).catch((e: unknown) => {
+          // already allowed (this topic was subscribed before): nothing to add
+          if (!(e instanceof OpError && e.awsName === "ResourceConflictException")) throw e;
         });
       }
       await runOp("sns", "Subscribe", {
@@ -393,6 +408,17 @@ function SubscribeDialog({
                 aria-label="Allow topic in queue policy"
               />{" "}
               Allow this topic in the queue&apos;s policy{" "}
+              <span className="text-muted-foreground">(required for delivery)</span>
+            </label>
+          )}
+          {protocol === "lambda" && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={allowFn}
+                onCheckedChange={(v) => setAllowFn(v === true)}
+                aria-label="Allow topic to invoke the function"
+              />{" "}
+              Allow this topic to invoke the function{" "}
               <span className="text-muted-foreground">(required for delivery)</span>
             </label>
           )}

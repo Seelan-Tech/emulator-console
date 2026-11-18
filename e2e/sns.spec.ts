@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import { makeZip } from "../src/features/lambda/zip";
 import { expect, expectToast, test, uniq } from "./fixtures";
 
 const typeInEditor = async (page: Page, text: string) => {
@@ -80,5 +81,63 @@ test("SNS: topic, subscribe a queue (policy added), publish is delivered, unsubs
     const { Topics } = await call("sns", "ListTopics");
     for (const t of Topics ?? [])
       if (t.TopicArn.endsWith(`:${topic}`)) await call("sns", "DeleteTopic", { TopicArn: t.TopicArn }).catch(() => {});
+  }
+});
+
+test("SNS: subscribing a function adds the permission, so a publish invokes it", async ({ page, target, call }) => {
+  const topic = uniq("e2e-lamtopic");
+  const fn = uniq("e2e-lamfn");
+  const marker = uniq("marker");
+  const source = `def handler(event, context):\n    print("${marker}", event["Records"][0]["Sns"]["Message"])\n`;
+  let topicArn: string | undefined;
+  try {
+    await call("lambda", "CreateFunction", {
+      FunctionName: fn,
+      Runtime: "python3.12",
+      Role: "arn:aws:iam::000000000000:role/lambda-role",
+      Handler: "index.handler",
+      Code: { ZipFile: { $base64: Buffer.from(makeZip("index.py", source)).toString("base64") } },
+    });
+    let fnArn = "";
+    for (let i = 0; i < 60; i++) {
+      const c = await call("lambda", "GetFunctionConfiguration", { FunctionName: fn });
+      fnArn = c.FunctionArn;
+      if (c.State === "Active" && c.LastUpdateStatus !== "InProgress") break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    topicArn = (await call("sns", "CreateTopic", { Name: topic })).TopicArn as string;
+
+    await page.goto(`${target.base}/sns/${encodeURIComponent(topic)}`);
+    await page.getByRole("tab", { name: /Subscriptions/ }).click();
+    await page.getByRole("button", { name: "Subscribe", exact: true }).click();
+    await page.getByLabel("Protocol").selectOption("lambda");
+    await expect(page.getByLabel("Allow topic to invoke the function")).toBeChecked();
+    await page.getByLabel("Endpoint").fill(fnArn);
+    await page.getByRole("dialog").getByRole("button", { name: "Subscribe" }).click();
+    await expectToast(page, "Subscribed");
+
+    const policy = JSON.parse((await call("lambda", "GetPolicy", { FunctionName: fn })).Policy);
+    expect(policy.Statement).toEqual([
+      expect.objectContaining({
+        Principal: { Service: "sns.amazonaws.com" },
+        Action: "lambda:InvokeFunction",
+        Condition: { ArnLike: { "AWS:SourceArn": topicArn } },
+      }),
+    ]);
+
+    await call("sns", "Publish", { TopicArn: topicArn, Message: "hello function" });
+    await expect
+      .poll(
+        async () => {
+          const r = await call("logs", "FilterLogEvents", { logGroupName: `/aws/lambda/${fn}` }).catch(() => null);
+          return (r?.events ?? []).some((e: { message: string }) => e.message.includes(`${marker} hello function`));
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(true);
+  } finally {
+    if (topicArn) await call("sns", "DeleteTopic", { TopicArn: topicArn }).catch(() => {});
+    await call("lambda", "DeleteFunction", { FunctionName: fn }).catch(() => {});
+    await call("logs", "DeleteLogGroup", { logGroupName: `/aws/lambda/${fn}` }).catch(() => {});
   }
 });

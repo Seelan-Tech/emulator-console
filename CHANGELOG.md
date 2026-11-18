@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- Subscribing a Lambda function to an SNS topic in the console now allows the topic to invoke it (an **Allow this topic to invoke the function** switch, on by default), as it already did for queues. Before, the function was never invoked and nothing said why.
+
 ### Added
 
 - A **Use with the AWS CLI** button on the target overview with the exports for that emulator, ready to copy.
