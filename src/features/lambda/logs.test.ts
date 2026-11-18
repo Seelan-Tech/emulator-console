@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { formatJsonLine, groupInvocations, type LogEvent } from "./logs";
+import { formatJsonLine, groupInvocations, type LogEvent, pythonReprToJson } from "./logs";
 
 const ev = (t: number, message: string, logStreamName = "s1"): LogEvent => ({ timestamp: t, message, logStreamName });
 
@@ -150,7 +150,28 @@ test("formatJsonLine spreads JSON objects and arrays over lines and leaves other
   // text, then JSON
   assert.equal(formatJsonLine('got {"a":1,"b":[2]}'), `got\n${pretty}`);
   assert.equal(formatJsonLine("[1,2]"), "[\n  1,\n  2\n]");
-  // not JSON: a Python dict repr, plain text, scalars, broken JSON
-  for (const line of ["{'a': 1}", "hello world", "42", '"text"', '{"a":', "x = [1, 2"])
+  // not JSON: plain text, scalars, broken JSON, a repr with objects JSON cannot hold
+  for (const line of [
+    "hello world",
+    "{'when': datetime.datetime(2026, 1, 1)}",
+    "{'a': {1, 2}}",
+    "{'a': 'open",
+    "42",
+    '"text"',
+    '{"a":',
+    "x = [1, 2",
+  ])
     assert.equal(formatJsonLine(line), line);
+});
+
+test("a printed Python dict becomes formatted JSON", () => {
+  const line = "event: {'Records': [{'Sns': {'Subject': None, 'Message': 'it\\'s \"q\" {x}', 'ok': True, 'n': 1.5}}]}";
+  assert.equal(
+    formatJsonLine(line),
+    'event:\n{\n  "Records": [\n    {\n      "Sns": {\n        "Subject": null,\n        "Message": "it\'s \\"q\\" {x}",\n        "ok": true,\n        "n": 1.5\n      }\n    }\n  ]\n}',
+  );
+  assert.equal(formatJsonLine("{'a': 1}"), '{\n  "a": 1\n}');
+  assert.equal(pythonReprToJson("{'a': [None, False]}"), '{"a": [null, false]}');
+  assert.equal(pythonReprToJson("{'a': \"x\\ny\"}"), '{"a": "x\\ny"}');
+  assert.equal(pythonReprToJson("{'a': Decimal('1')}"), undefined);
 });

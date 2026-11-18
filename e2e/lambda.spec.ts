@@ -116,7 +116,7 @@ test("Lambda: the Logs tab shows runs started from the console and by an SNS sub
   const fn = uniq("e2e-logs");
   const topic = uniq("e2e-logs-topic");
   const marker = uniq("marker");
-  const source = `def handler(event, context):\n    print("${marker}")\n    print('{"compact":{"a":1,"b":[2]}}')\n    if event.get("fail"):\n        raise ValueError("planned failure")\n    return {"ok": True}\n`;
+  const source = `def handler(event, context):\n    print("${marker}")\n    print('{"compact":{"a":1,"b":[2]}}')\n    print({"pyrepr": {"n": None, "ok": True}})\n    if event.get("fail"):\n        raise ValueError("planned failure")\n    return {"ok": True}\n`;
   let topicArn: string | undefined;
   try {
     await call("lambda", "CreateFunction", {
@@ -160,6 +160,8 @@ test("Lambda: the Logs tab shows runs started from the console and by an SNS sub
     await expect(page.getByTestId("lambda-logs")).toContainText(marker);
     // printed JSON is spread over lines, until the switch is turned off
     await expect(runs.first().locator("pre")).toContainText('"compact": {');
+    await expect(runs.first().locator("pre")).toContainText('"pyrepr": {');
+    await expect(runs.first().locator("pre")).toContainText('"n": null');
     await page.getByLabel("Format JSON in logs").click();
     await expect(runs.first().locator("pre")).toContainText('{"compact":{"a":1,"b":[2]}}');
   } finally {
