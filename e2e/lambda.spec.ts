@@ -107,3 +107,60 @@ test("Lambda: Node.js runtime and zip upload", async ({ page, target, call }) =>
     await call("lambda", "DeleteFunction", { FunctionName: zipFn }).catch(() => {});
   }
 });
+
+test("Lambda: the Logs tab shows runs started from the console and by an SNS subscription", async ({
+  page,
+  target,
+  call,
+}) => {
+  const fn = uniq("e2e-logs");
+  const topic = uniq("e2e-logs-topic");
+  const marker = uniq("marker");
+  const source = `def handler(event, context):\n    print("${marker}")\n    if event.get("fail"):\n        raise ValueError("planned failure")\n    return {"ok": True}\n`;
+  let topicArn: string | undefined;
+  try {
+    await call("lambda", "CreateFunction", {
+      FunctionName: fn,
+      Runtime: "python3.12",
+      Role: "arn:aws:iam::000000000000:role/lambda-role",
+      Handler: "index.handler",
+      Code: { ZipFile: { $base64: Buffer.from(makeZip("index.py", source)).toString("base64") } },
+    });
+    for (let i = 0; i < 60; i++) {
+      const c = await call("lambda", "GetFunctionConfiguration", { FunctionName: fn });
+      if (c.State === "Active" && c.LastUpdateStatus !== "InProgress") break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const fnArn = (await call("lambda", "GetFunctionConfiguration", { FunctionName: fn })).FunctionArn as string;
+
+    // a run started outside the Invoke tab that fails, then one started by SNS
+    await call("lambda", "Invoke", { FunctionName: fn, Payload: '{"fail":true}' });
+    topicArn = (await call("sns", "CreateTopic", { Name: topic })).TopicArn as string;
+    await call("lambda", "AddPermission", {
+      FunctionName: fn,
+      StatementId: "sns",
+      Action: "lambda:InvokeFunction",
+      Principal: "sns.amazonaws.com",
+      SourceArn: topicArn,
+    });
+    await call("sns", "Subscribe", { TopicArn: topicArn, Protocol: "lambda", Endpoint: fnArn });
+    await call("sns", "Publish", { TopicArn: topicArn, Message: "hello" });
+
+    await page.goto(`${target.base}/lambda/${fn}`);
+    await page.getByRole("tab", { name: "Logs" }).click();
+    const runs = page.getByTestId("lambda-run");
+    // logs can lag the runs by a few seconds
+    await expect(async () => {
+      await page.getByRole("button", { name: "Refresh logs" }).click();
+      await expect(runs).toHaveCount(2, { timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    await expect(runs.filter({ hasText: "ValueError: planned failure" })).toHaveCount(1);
+    await expect(runs.filter({ hasText: "ValueError: planned failure" })).toContainText("error");
+    await runs.first().locator("summary").click();
+    await expect(page.getByTestId("lambda-logs")).toContainText(marker);
+  } finally {
+    if (topicArn) await call("sns", "DeleteTopic", { TopicArn: topicArn }).catch(() => {});
+    await call("lambda", "DeleteFunction", { FunctionName: fn }).catch(() => {});
+    await call("logs", "DeleteLogGroup", { logGroupName: `/aws/lambda/${fn}` }).catch(() => {});
+  }
+});

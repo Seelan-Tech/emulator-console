@@ -12,6 +12,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- A **Logs** tab on a Lambda function with its recent runs (from the Invoke tab, the AWS CLI or an SDK, or an SNS subscription): status, duration, memory and the printed output, from the function's CloudWatch log group.
 - A **Use with the AWS CLI** button on the target overview with the exports for that emulator, ready to copy.
 - The console version is shown in the header, with an **About** dialog (console, commit, emulator versions and a **Copy details** button for bug reports). Builds that are not a tagged release show their commit (`0.2.0+abc1234`) instead of the release version. `GET /api/health` returns `version` and `revision`.
 
