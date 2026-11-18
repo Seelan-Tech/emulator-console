@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { groupInvocations, type LogEvent } from "./logs";
+import { formatJsonLine, groupInvocations, type LogEvent } from "./logs";
 
 const ev = (t: number, message: string, logStreamName = "s1"): LogEvent => ({ timestamp: t, message, logStreamName });
 
@@ -137,4 +137,20 @@ test("Python: logging output at ERROR level is not a failure either", () => {
     ev(3, "REPORT RequestId: p1\tDuration: 1.00 ms\tBilled Duration: 1 ms\tMemory Size: 128 MB\tMax Memory Used: 1 MB"),
   ]);
   assert.equal(inv!.status, "ok");
+});
+
+test("formatJsonLine spreads JSON objects and arrays over lines and leaves other output alone", () => {
+  const pretty = '{\n  "a": 1,\n  "b": [\n    2\n  ]\n}';
+  assert.equal(formatJsonLine('{"a":1,"b":[2]}'), pretty);
+  // Node: the prefix stays on its own line
+  assert.equal(
+    formatJsonLine('2026-01-01T00:00:00Z\tabc\tINFO\t{"a":1,"b":[2]}'),
+    `2026-01-01T00:00:00Z\tabc\tINFO\n${pretty}`,
+  );
+  // text, then JSON
+  assert.equal(formatJsonLine('got {"a":1,"b":[2]}'), `got\n${pretty}`);
+  assert.equal(formatJsonLine("[1,2]"), "[\n  1,\n  2\n]");
+  // not JSON: a Python dict repr, plain text, scalars, broken JSON
+  for (const line of ["{'a': 1}", "hello world", "42", '"text"', '{"a":', "x = [1, 2"])
+    assert.equal(formatJsonLine(line), line);
 });

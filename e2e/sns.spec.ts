@@ -41,8 +41,17 @@ test("SNS: topic, subscribe a queue (policy added), publish is delivered, unsubs
     await page.getByRole("dialog").getByRole("button", { name: "Subscribe" }).click();
     await expect(page.getByText("pending confirmation")).toBeVisible();
 
-    // publish with a subject and an attribute; the queue receives it
+    // Beautify shows only for JSON, and re-indents it
     await page.getByRole("tab", { name: "Publish" }).click();
+    await typeInEditor(page, '{"a":1}');
+    await page.getByRole("button", { name: "Beautify JSON" }).click();
+    await expect(page.locator(".cm-content").first()).toContainText('"a": 1');
+    await page.locator(".cm-content").first().click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.press("Delete");
+    await expect(page.getByRole("button", { name: "Beautify JSON" })).toHaveCount(0);
+
+    // publish with a subject and an attribute; the queue receives it
     await typeInEditor(page, "hello subscribers");
     await page.getByLabel("Subject (optional)").fill("greeting");
     await page.getByRole("button", { name: "Add attribute" }).click();

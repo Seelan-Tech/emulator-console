@@ -1,3 +1,5 @@
+import { beautifyJson } from "@/lib/json";
+
 // Turns a function's CloudWatch Logs events into one entry per invocation. The emulator writes the same lines AWS does:
 // `START RequestId: …`, the function's own output (one event per line), `END RequestId: …` and a tab-separated
 // `REPORT RequestId: …\tDuration: … ms\t…`; an unhandled error is a `[ERROR] <Type>: <message>` line plus a traceback.
@@ -85,4 +87,23 @@ export function groupInvocations(events: LogEvent[]): Invocation[] {
   }
   for (const inv of all) if (inv.status === "running" && inv.error !== undefined) inv.status = "error";
   return all.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+}
+
+// Node prefixes every printed line with "<time>\t<request id>\t<level>\t".
+const NODE_PREFIX = /^\S+\t\S+\t\w+\t/;
+
+// A printed line that holds a JSON object or array, spread over several lines: the whole line (`print(json.dumps(e))`),
+// the part after Node's prefix, or whatever follows the first brace or bracket ("got {...}"). Anything else (a Python
+// dict repr uses single quotes, so it is not JSON) is returned as it was.
+export function formatJsonLine(line: string): string {
+  const prefix = NODE_PREFIX.exec(line)?.[0] ?? "";
+  const rest = line.slice(prefix.length);
+  const whole = beautifyJson(rest);
+  if (whole !== undefined) return prefix ? `${prefix.trimEnd()}\n${whole}` : whole;
+  const at = rest.search(/[{[]/);
+  if (at > 0) {
+    const json = beautifyJson(rest.slice(at));
+    if (json !== undefined) return `${prefix}${rest.slice(0, at).trimEnd()}\n${json}`;
+  }
+  return line;
 }

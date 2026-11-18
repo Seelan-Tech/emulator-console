@@ -13,7 +13,7 @@ import { Switch } from "@/components/ui/switch";
 import { callOp, OpError } from "@/lib/aws-client";
 import { timeAgo } from "@/lib/utils";
 
-import { groupInvocations, type Invocation, type LogEvent } from "./logs";
+import { formatJsonLine, groupInvocations, type Invocation, type LogEvent } from "./logs";
 
 const WINDOWS = [
   { label: "Last 15 minutes", ms: 15 * 60_000 },
@@ -33,6 +33,7 @@ export function LambdaLogs({ fn }: { fn: string }) {
   const group = `/aws/lambda/${fn}`;
   const [windowMs, setWindowMs] = useState(WINDOWS[1]!.ms);
   const [auto, setAuto] = useState(false);
+  const [pretty, setPretty] = useState(true);
 
   const logs = useQuery({
     queryKey: [tid, "lambda", "logs", fn, region, windowMs],
@@ -88,6 +89,9 @@ export function LambdaLogs({ fn }: { fn: string }) {
         <label className="flex items-center gap-2 text-sm text-muted-foreground">
           <Switch checked={auto} onCheckedChange={setAuto} aria-label="Auto-refresh logs" /> Auto-refresh
         </label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Switch checked={pretty} onCheckedChange={setPretty} aria-label="Format JSON in logs" /> Format JSON
+        </label>
         <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
           <code>{group}</code>
           <CopyButton value={group} label="Copy log group name" />
@@ -115,7 +119,7 @@ export function LambdaLogs({ fn }: { fn: string }) {
           <ul className="grid gap-2">
             {logs.data!.runs.map((r, i) => (
               <li key={`${r.requestId}-${i}`}>
-                <RunRow run={r} />
+                <RunRow run={r} pretty={pretty} />
               </li>
             ))}
           </ul>
@@ -130,9 +134,10 @@ export function LambdaLogs({ fn }: { fn: string }) {
   );
 }
 
-function RunRow({ run }: { run: Invocation }) {
+function RunRow({ run, pretty }: { run: Invocation; pretty: boolean }) {
   const [all, setAll] = useState(false);
-  const shown = all ? run.lines : run.lines.slice(0, MAX_LINES);
+  const lines = all ? run.lines : run.lines.slice(0, MAX_LINES);
+  const shown = pretty ? lines.map(formatJsonLine) : lines;
   return (
     <details className="rounded-md border bg-card" data-testid="lambda-run">
       <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-3 py-2 text-sm">
