@@ -6,22 +6,24 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
-### Fixed
-
-- Subscribing a Lambda function to an SNS topic in the console now allows the topic to invoke it (an **Allow this topic to invoke the function** switch, on by default), as it already did for queues. Before, the function was never invoked and nothing said why.
+## [0.3.0] - 2026-11-17
 
 ### Added
 
-- JSON (and a printed Python dict) that a function prints is formatted in the **Logs** tab (a **Format JSON** switch turns it off), and the JSON editors (operation runner, Lambda payloads, DynamoDB items, fixtures, and SNS, SQS and secret bodies) have a **Beautify** button.
-- A **Logs** tab on a Lambda function with its recent runs (from the Invoke tab, the AWS CLI or an SDK, or an SNS subscription): status, duration, memory and the printed output, from the function's CloudWatch log group.
+- A **Logs** tab on a Lambda function with its recent runs (from the Invoke tab, the AWS CLI or an SDK, or an SNS subscription): status, duration, memory and the printed output, from the function's CloudWatch log group. JSON that a function prints (and a printed Python dict) is formatted; a **Format JSON** switch turns it off.
+- A **Beautify** button in the JSON editors (operation runner, Lambda payloads, DynamoDB items, fixtures, and SNS, SQS and secret bodies).
 - A **Use with the AWS CLI** button on the target overview with the exports for that emulator, ready to copy.
-- The console version is shown in the header, with an **About** dialog (console, commit, emulator versions and a **Copy details** button for bug reports). Builds that are not a tagged release show their commit (`0.2.0+abc1234`) instead of the release version. `GET /api/health` returns `version` and `revision`.
+- The console version is shown in the header, with an **About** dialog (console, commit, emulator versions and a **Copy details** button for bug reports). Builds that are not a tagged release show their commit (`0.3.0+abc1234`) instead of the release version. `GET /api/health` returns `version` and `revision`.
 
 ### Changed
 
 - The SNS subscribe dialog marks `http`, `https`, `email` and `sms` as "will not deliver", because the emulator never confirms those subscriptions.
 - The **Help** button opens the user guide of the version you run (its release tag) instead of `main`. `DOCS_URL` still overrides it.
 - Release notes link to the guide for that version.
+
+### Fixed
+
+- Subscribing a Lambda function to an SNS topic in the console now allows the topic to invoke it (an **Allow this topic to invoke the function** switch, on by default), as it already did for queues. Before, the function was never invoked and nothing said why.
 
 ## [0.2.0] - 2026-11-16
 
@@ -49,6 +51,7 @@ All notable changes to this project are documented here. The format is based on
 - Docker Compose stack: the emulator (pinned to a version and verified against AWS's signature, telemetry off by default) and the console, with its data in a SQLite file.
 - User guide in `docs/`.
 
-[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Seelan-Tech/emulator-console/releases/tag/v0.1.0
