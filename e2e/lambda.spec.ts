@@ -116,7 +116,7 @@ test("Lambda: the Logs tab shows runs started from the console and by an SNS sub
   const fn = uniq("e2e-logs");
   const topic = uniq("e2e-logs-topic");
   const marker = uniq("marker");
-  const source = `def handler(event, context):\n    print("${marker}")\n    if event.get("fail"):\n        raise ValueError("planned failure")\n    return {"ok": True}\n`;
+  const source = `def handler(event, context):\n    print("${marker}")\n    print('{"compact":{"a":1,"b":[2]}}')\n    if event.get("fail"):\n        raise ValueError("planned failure")\n    return {"ok": True}\n`;
   let topicArn: string | undefined;
   try {
     await call("lambda", "CreateFunction", {
@@ -158,6 +158,10 @@ test("Lambda: the Logs tab shows runs started from the console and by an SNS sub
     await expect(runs.filter({ hasText: "ValueError: planned failure" })).toContainText("error");
     await runs.first().locator("summary").click();
     await expect(page.getByTestId("lambda-logs")).toContainText(marker);
+    // printed JSON is spread over lines, until the switch is turned off
+    await expect(runs.first().locator("pre")).toContainText('"compact": {');
+    await page.getByLabel("Format JSON in logs").click();
+    await expect(runs.first().locator("pre")).toContainText('{"compact":{"a":1,"b":[2]}}');
   } finally {
     if (topicArn) await call("sns", "DeleteTopic", { TopicArn: topicArn }).catch(() => {});
     await call("lambda", "DeleteFunction", { FunctionName: fn }).catch(() => {});

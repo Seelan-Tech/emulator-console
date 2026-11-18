@@ -11,7 +11,7 @@ Deleting a queue asks for its name. The emulator will not let you create a queue
 
 ## Sending
 
-On a queue, the **Send** tab takes a **Message body** (a code editor, so JSON stays readable), optional **Message attributes** (name, type and value) and, for FIFO queues, a **Message group id**. A FIFO queue without a group id fails with a clear message before anything is sent.
+On a queue, the **Send** tab takes a **Message body** (a code editor; **Beautify** re-indents JSON), optional **Message attributes** (name, type and value) and, for FIFO queues, a **Message group id**. A FIFO queue without a group id fails with a clear message before anything is sent.
 
 ## Receiving
 
