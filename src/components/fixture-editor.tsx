@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { CodeEditor } from "@/components/code-editor";
 import { ConfirmDialog, Spinner } from "@/components/common";
+import { CopyCliButton } from "@/components/copy-cli-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input, Select } from "@/components/ui/input";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import type { FixtureRunView, StepResult } from "@/lib/api-types";
+import { cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
 
 export function FixtureEditor(props: {
@@ -131,6 +133,13 @@ export function FixtureEditor(props: {
             <Button variant="outline" onClick={save}>
               <Save /> Save
             </Button>
+            <CopyCliButton
+              label="Copy as AWS CLI script"
+              command={() => {
+                const parsed: unknown = JSON.parse(steps);
+                return Array.isArray(parsed) ? cliScript(parsed as Parameters<typeof cliScript>[0]) : null;
+              }}
+            />
             <Button variant="ghost" onClick={() => setDeleting(true)}>
               <Trash2 className="text-destructive" /> Delete fixture
             </Button>

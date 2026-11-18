@@ -21,7 +21,7 @@ What is recorded: successful state-changing calls from the screens and from the 
 
 Recording happens in the console, in your browser, so only what you do in the console is seen. Calls made with the AWS CLI, an SDK or a script go straight to the emulator, which has no API that lists or logs what it holds, so there is nothing for the console to read back. Setup done that way is **not in the fixture**, and a replay will not rebuild it.
 
-To get it into a fixture, repeat it in the console while **Record** is on, or add the steps by hand in the editor (fixtures are plain JSON). S3 uploads are not recorded either, so a replay recreates a bucket but not the files in it.
+To get it into a fixture, repeat it in the console while **Record** is on, or add the steps by hand in the editor (fixtures are plain JSON). The other direction works: **Copy steps as AWS CLI script** in the recorder drawer (or **Copy as AWS CLI script** in the fixture editor) turns recorded steps into a shell script of `aws` commands, with a `sleep` where a replay pauses, and the **Steps** list has a button per step. Inputs are never kept in the [activity log](concepts.md), so those copies come from the recorder, the editor and the runner only. S3 uploads are not recorded either, so a replay recreates a bucket but not the files in it.
 
 The recorder adds the pauses and retries that make a replay reliable, because the emulator makes some resources usable only after a moment:
 
