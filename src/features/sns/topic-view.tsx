@@ -1,5 +1,6 @@
 "use client";
-import { Plus, Send, Trash2, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, RefreshCw, Send, Trash2, Wrench, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AttrRow, toMessageAttributes } from "@/features/sqs/logic";
-import { OpError, useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
+import { callOp, OpError, useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
 
 import {
   addTopicToQueuePolicy,
@@ -36,10 +37,88 @@ import {
   type Protocol,
   PROTOCOLS,
   queueArnFromUrl,
+  subscriptionHealth,
   supportsRawDelivery,
+  type TargetState,
 } from "./logic";
 
 type Sub = { SubscriptionArn: string; Protocol: string; Endpoint: string };
+type RunOp = ReturnType<typeof useRunOp>;
+
+// Without these statements SNS cannot deliver, and nothing tells you so. Shared by the Subscribe dialog and Fix.
+async function allowTopicInQueue(runOp: RunOp, queueArn: string, topicArn: string) {
+  const { QueueUrl } = await runOp<{ QueueUrl: string }>("sqs", "GetQueueUrl", { QueueName: arnName(queueArn) });
+  const { Attributes } = await runOp<{ Attributes?: { Policy?: string } }>("sqs", "GetQueueAttributes", {
+    QueueUrl,
+    AttributeNames: ["Policy"],
+  });
+  await runOp("sqs", "SetQueueAttributes", {
+    QueueUrl,
+    Attributes: { Policy: addTopicToQueuePolicy(Attributes?.Policy, queueArn, topicArn) },
+  });
+}
+
+async function allowTopicInFunction(runOp: RunOp, functionArn: string, topicArn: string) {
+  await runOp("lambda", "AddPermission", {
+    FunctionName: functionArn,
+    StatementId: lambdaStatementId(topicArn),
+    Action: "lambda:InvokeFunction",
+    Principal: "sns.amazonaws.com",
+    SourceArn: topicArn,
+  }).catch((e: unknown) => {
+    // already allowed (this topic was subscribed before): nothing to add
+    if (!(e instanceof OpError && e.awsName === "ResourceConflictException")) throw e;
+  });
+}
+
+const isMissing = (e: unknown) =>
+  e instanceof OpError && /NonExistent|DoesNotExist|ResourceNotFound/.test(e.awsName ?? "");
+
+// Reads the target of every deliverable subscription, one call at a time (the emulator drops connections under bursts).
+async function readTargets(tid: string, region: string | undefined, subs: Sub[]) {
+  const out: Record<string, TargetState> = {};
+  for (const s of subs) {
+    if (s.SubscriptionArn === "PendingConfirmation") continue;
+    try {
+      if (s.Protocol === "sqs") {
+        const { QueueUrl } = await callOp<{ QueueUrl: string }>(
+          tid,
+          "sqs",
+          "GetQueueUrl",
+          { QueueName: arnName(s.Endpoint) },
+          region,
+        );
+        const { Attributes } = await callOp<{ Attributes?: { Policy?: string } }>(
+          tid,
+          "sqs",
+          "GetQueueAttributes",
+          { QueueUrl, AttributeNames: ["Policy"] },
+          region,
+        );
+        out[s.SubscriptionArn] = { exists: true, policy: Attributes?.Policy };
+      } else if (s.Protocol === "lambda") {
+        await callOp(tid, "lambda", "GetFunctionConfiguration", { FunctionName: s.Endpoint }, region);
+        const policy = await callOp<{ Policy?: string }>(
+          tid,
+          "lambda",
+          "GetPolicy",
+          { FunctionName: s.Endpoint },
+          region,
+        ).then(
+          (r) => r.Policy,
+          (e: unknown) => {
+            if (isMissing(e)) return undefined; // the function exists but has no policy yet
+            throw e;
+          },
+        );
+        out[s.SubscriptionArn] = { exists: true, policy };
+      }
+    } catch (e) {
+      out[s.SubscriptionArn] = isMissing(e) ? { exists: false } : undefined;
+    }
+  }
+  return out;
+}
 
 export function SnsTopicView({ topic }: { topic: string }) {
   const { tid, region } = useTarget();
@@ -90,6 +169,28 @@ export function SnsTopicView({ topic }: { topic: string }) {
   }
 
   const list = subs.data?.Subscriptions ?? [];
+  const runOp = useRunOp();
+  const qc = useQueryClient();
+  const [fixing, setFixing] = useState<string>();
+  const health = useQuery({
+    queryKey: [tid, "sns", "health", TopicArn, region, list.map((x) => x.SubscriptionArn).join(",")],
+    queryFn: () => readTargets(tid, region, list),
+    enabled: !!TopicArn && subs.isSuccess && list.length > 0,
+  });
+
+  async function fix(s: Sub, kind: "queue-policy" | "lambda-permission") {
+    if (!TopicArn) return;
+    setFixing(s.SubscriptionArn);
+    try {
+      if (kind === "queue-policy") await allowTopicInQueue(runOp, s.Endpoint, TopicArn);
+      else await allowTopicInFunction(runOp, s.Endpoint, TopicArn);
+      toast.success("Topic allowed");
+      await qc.invalidateQueries({ queryKey: [tid, "sns", "health"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+    setFixing(undefined);
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6">
@@ -198,6 +299,15 @@ export function SnsTopicView({ topic }: { topic: string }) {
             <div className="mb-3">
               <Button onClick={() => setSubscribing(true)}>
                 <Plus /> Subscribe
+              </Button>{" "}
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Recheck health"
+                disabled={health.isFetching}
+                onClick={() => health.refetch()}
+              >
+                {health.isFetching ? <Spinner /> : <RefreshCw />}
               </Button>
             </div>
             {list.length === 0 ? (
@@ -212,12 +322,18 @@ export function SnsTopicView({ topic }: { topic: string }) {
                     <TH>Protocol</TH>
                     <TH>Endpoint</TH>
                     <TH>Status</TH>
+                    <TH>Health</TH>
                     <TH className="text-right">Actions</TH>
                   </TR>
                 </THead>
                 <TBody>
                   {list.map((s, i) => {
                     const pending = s.SubscriptionArn === "PendingConfirmation";
+                    const h = health.data
+                      ? subscriptionHealth(s, TopicArn, health.data[s.SubscriptionArn])
+                      : deliversOnEmulator(s.Protocol as Protocol) && !pending
+                        ? undefined
+                        : subscriptionHealth(s, TopicArn, undefined);
                     return (
                       <TR key={i}>
                         <TD>
@@ -229,6 +345,33 @@ export function SnsTopicView({ topic }: { topic: string }) {
                             <Badge variant="warning">pending confirmation</Badge>
                           ) : (
                             <Badge variant="success">confirmed</Badge>
+                          )}
+                        </TD>
+                        <TD data-testid="sub-health">
+                          {h ? (
+                            <span className="flex items-center gap-2">
+                              <Badge
+                                variant={
+                                  h.status === "ok" ? "success" : h.status === "error" ? "destructive" : "warning"
+                                }
+                                title={h.message}
+                              >
+                                {h.status === "ok" ? "healthy" : h.status === "error" ? "broken" : h.status}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">{h.message}</span>
+                              {h.fix && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={fixing === s.SubscriptionArn}
+                                  onClick={() => fix(s, h.fix!)}
+                                >
+                                  {fixing === s.SubscriptionArn ? <Spinner /> : <Wrench />} Fix
+                                </Button>
+                              )}
+                            </span>
+                          ) : (
+                            <Skeleton className="h-5 w-24" />
                           )}
                         </TD>
                         <TD className="text-right">
@@ -305,31 +448,8 @@ function SubscribeDialog({
     e.preventDefault();
     setBusy(true);
     try {
-      if (protocol === "sqs" && allow) {
-        const queueName = arnName(endpoint);
-        const { QueueUrl } = await runOp<{ QueueUrl: string }>("sqs", "GetQueueUrl", { QueueName: queueName });
-        const { Attributes } = await runOp<{ Attributes?: { Policy?: string } }>("sqs", "GetQueueAttributes", {
-          QueueUrl,
-          AttributeNames: ["Policy"],
-        });
-        await runOp("sqs", "SetQueueAttributes", {
-          QueueUrl,
-          Attributes: { Policy: addTopicToQueuePolicy(Attributes?.Policy, endpoint, topicArn) },
-        });
-      }
-      if (protocol === "lambda" && allowFn) {
-        // Without this permission SNS cannot invoke the function, and nothing tells you so.
-        await runOp("lambda", "AddPermission", {
-          FunctionName: endpoint,
-          StatementId: lambdaStatementId(topicArn),
-          Action: "lambda:InvokeFunction",
-          Principal: "sns.amazonaws.com",
-          SourceArn: topicArn,
-        }).catch((e: unknown) => {
-          // already allowed (this topic was subscribed before): nothing to add
-          if (!(e instanceof OpError && e.awsName === "ResourceConflictException")) throw e;
-        });
-      }
+      if (protocol === "sqs" && allow) await allowTopicInQueue(runOp, endpoint, topicArn);
+      if (protocol === "lambda" && allowFn) await allowTopicInFunction(runOp, endpoint, topicArn);
       await runOp("sns", "Subscribe", {
         TopicArn: topicArn,
         Protocol: protocol,

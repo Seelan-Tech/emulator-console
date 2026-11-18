@@ -17,6 +17,10 @@ When the protocol is `sqs` (or `lambda`) you pick one of your queues (or functio
 - **Allow this topic to invoke the function** (functions) adds a `lambda:InvokeFunction` permission for `sns.amazonaws.com`, limited to this topic, with the statement id `sns-<region>-<topic>`. Without it the function never runs and no log group appears. Leave it on unless you manage the function's policy yourself; a topic that was already allowed is fine. A subscription made with the AWS CLI or an SDK needs `lambda add-permission` by hand.
 - **Raw message delivery** delivers the message body as it was published, instead of wrapped in the SNS JSON envelope.
 
+### Health
+
+The **Health** column checks that each subscription can actually deliver, which SNS never tells you. For `sqs` it reads the queue's policy and for `lambda` the function's resource policy, and looks for a statement that lets this topic in (a matching `aws:SourceArn` condition, or none). A missing queue or function, or a policy without the topic, shows as **broken**, and **Fix** adds the same statement the Subscribe dialog would have added. Subscriptions that stay pending, and protocols the emulator never delivers to, show as warnings. **Recheck health** reads the targets again; the checks run one at a time because the emulator drops connections under bursts.
+
 ## Publishing
 
 **Publish** takes a **Message**, optional **Message attributes** and, for FIFO topics, a **Message group id**. The result shows the message id. If a queue is subscribed you can see the delivery on the queue's [Receive tab](sqs.md#receiving).
