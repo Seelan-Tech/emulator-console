@@ -4,6 +4,8 @@ import { ChevronDown, ChevronUp, Circle, Save, Trash2, X } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { CopyCliButton } from "@/components/copy-cli-button";
+import { useTarget } from "@/components/target-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +19,7 @@ import {
 import { Input, Select } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { FixtureDetail, IdName } from "@/lib/api-types";
+import { cliCommand, cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
 import { type RecordedStep, withTiming } from "@/lib/recorder-timing";
 import { storage } from "@/lib/storage";
@@ -82,6 +85,7 @@ type FixtureRow = { id: string; name: string };
 // Persistent bar at the bottom of every target page: what you click is captured as replayable steps.
 export function RecorderDrawer() {
   const { steps, recording, setRecording, remove, clear } = useRecorder();
+  const { region } = useTarget();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const qc = useQueryClient();
@@ -106,6 +110,10 @@ export function RecorderDrawer() {
               <Button size="sm" variant="ghost" onClick={() => setOpen(!open)}>
                 {open ? <ChevronDown /> : <ChevronUp />} Steps
               </Button>
+              <CopyCliButton
+                label="Copy steps as AWS CLI script"
+                command={() => cliScript(steps.map((s) => ({ ...s, region: s.region ?? region })))}
+              />
               <Button size="sm" variant="outline" onClick={clear}>
                 <Trash2 /> Clear
               </Button>
@@ -124,8 +132,16 @@ export function RecorderDrawer() {
               <span>
                 {s.service}.{s.operation}
               </span>
+              <span className="ml-auto">
+                <CopyCliButton
+                  iconOnly
+                  variant="ghost"
+                  label={`Copy step ${i + 1} as AWS CLI`}
+                  command={() => cliCommand({ ...s, region: s.region ?? region })}
+                />
+              </span>
               <button
-                className="ml-auto text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive"
                 onClick={() => remove(i)}
                 aria-label={`Remove step ${i + 1}`}
               >

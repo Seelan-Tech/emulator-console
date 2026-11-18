@@ -77,3 +77,35 @@ test("every service links to its operations and sidebar items resolve", async ({
     await expect(page.getByTestId("operations").getByRole("link").first()).toBeVisible();
   }
 });
+
+test("copy as AWS CLI: from the runner and from the recorded steps", async ({ page, target, context, call }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const name = uniq("e2e-cli");
+  const clip = () => page.evaluate(() => navigator.clipboard.readText());
+  try {
+    // the runner copies the request as typed, as one command
+    await page.goto(`${target.base}/s/ssm/PutParameter`);
+    const form = page.getByTestId("schema-form");
+    await form.getByLabel("Name", { exact: true }).fill(`/${name}`);
+    await form.getByLabel("Value", { exact: true }).fill("it's");
+    await form.getByText("Optional fields").click();
+    await form.getByLabel("Type", { exact: true }).fill("String");
+    await page.getByRole("button", { name: "Copy as AWS CLI" }).click();
+    const cmd = await clip();
+    expect(cmd).toContain("aws ssm put-parameter --region ");
+    expect(cmd).toContain(`--cli-input-json '{"Name":"/${name}","Value":"it'\\''s","Type":"String"}'`);
+
+    // run it so the step is recorded, then copy the recorded steps as a script
+    await page.getByRole("button", { name: "Run" }).click();
+    await expect(page.getByTestId("outcome").getByText("Success")).toBeVisible();
+    await page.getByRole("button", { name: "Steps", exact: true }).click();
+    await page.getByRole("button", { name: "Copy step 1 as AWS CLI" }).click();
+    expect(await clip()).toContain("aws ssm put-parameter");
+    await page.getByRole("button", { name: "Copy steps as AWS CLI script" }).click();
+    const script = await clip();
+    expect(script).toMatch(/^# Run the exports/);
+    expect(script).toContain("aws ssm put-parameter");
+  } finally {
+    await call("ssm", "DeleteParameter", { Name: `/${name}` }).catch(() => {});
+  }
+});

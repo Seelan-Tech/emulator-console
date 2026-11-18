@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Copy as AWS CLI**: the operation runner copies the request as an `aws` command, and the recorder drawer and fixture editor copy a step, or all steps as a script (with a `sleep` where a replay pauses). The activity log still stores no inputs.
+
 ## [0.3.0] - 2026-11-17
 
 ### Added

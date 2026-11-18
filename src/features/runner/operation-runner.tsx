@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { CodeEditor } from "@/components/code-editor";
 import { JsonViewer, PageHeader, Spinner } from "@/components/common";
+import { CopyCliButton } from "@/components/copy-cli-button";
 import { useTarget } from "@/components/target-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { serviceMeta } from "@/features/services";
 import { type OpError, useMutateOp } from "@/lib/aws-client";
+import { cliCommand } from "@/lib/cli-command";
 import { api } from "@/lib/client";
 import type { Field } from "@/lib/schema";
 import { sessionStorageJson } from "@/lib/storage";
@@ -23,7 +25,7 @@ type Outcome = { ok: true; ms: number; output: unknown } | { ok: false; ms: numb
 type Call = { svc: string; op: string; input: string; ok: boolean; at: number };
 
 export function OperationRunner({ svc, op }: { svc: string; op: string }) {
-  const { tid } = useTarget();
+  const { tid, region } = useTarget();
   const meta = serviceMeta(svc)!;
   const schema = useQuery({
     queryKey: ["schema", svc, op],
@@ -116,6 +118,9 @@ export function OperationRunner({ svc, op }: { svc: string; op: string }) {
         <Button onClick={execute} disabled={!!parseError || run.isPending}>
           {run.isPending ? <Spinner /> : <Play />} Run
         </Button>
+        <CopyCliButton
+          command={() => (parseError ? null : cliCommand({ service: meta.id, operation: op, input: parsed, region }))}
+        />
         {outcome && <span className="text-xs text-muted-foreground">{outcome.ms} ms</span>}
       </div>
 

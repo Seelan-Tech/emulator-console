@@ -19,6 +19,8 @@ Pick an operation and the console shows a form built from the SDK's own schema f
 
 Press **Run**. The response appears below as JSON, with the time taken. AWS errors show their name and message, so `NoSuchBucket` reads as `NoSuchBucket`, not as "request failed".
 
+**Copy as AWS CLI** next to **Run** copies the request as an `aws` command (`aws ssm put-parameter --region us-east-1 --cli-input-json '{…}'`), ready to paste in a terminal that has the [exports from **Use with the AWS CLI**](../getting-started.md). A Lambda `Invoke` becomes flags plus an output file (`response.json`), because the CLI does not accept JSON input for it.
+
 ## Recording
 
 State-changing operations run here are recorded like any other action, so a one-off `ssm.PutParameter` becomes part of your next fixture. Reads are not.
