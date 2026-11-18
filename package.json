@@ -1,6 +1,6 @@
 {
   "name": "emulator-console",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local web console for use with the AWS Emulator: native service screens, recordable fixtures and restart recovery.",
   "author": "Seelan Technologies LLC <info@seelantech.com> (https://www.seelantech.com)",
   "homepage": "https://github.com/Seelan-Tech/emulator-console#readme",
