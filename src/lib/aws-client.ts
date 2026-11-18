@@ -116,16 +116,17 @@ export function useRunOp() {
     svc: Svc,
     op: string,
     input: unknown = {},
-    o: { record?: boolean; invalidate?: boolean } = {},
+    o: { record?: boolean; invalidate?: boolean; region?: string } = {},
   ): Promise<Out> => {
-    const out = await callOp<Out>(tid, svc, op, input, region);
+    const at = o.region ?? region;
+    const out = await callOp<Out>(tid, svc, op, input, at);
     if (o.invalidate !== false) void qc.invalidateQueries({ queryKey: [tid, svc] });
     if (o.record !== false && isRecordable(op))
       recorder.add({
         service: svc,
         operation: op,
         input: (input ?? {}) as Record<string, unknown>,
-        ...(region !== undefined ? { region } : {}),
+        ...(at !== undefined ? { region: at } : {}),
       });
     return out;
   };
