@@ -41,6 +41,8 @@ test("SNS: topic, subscribe a queue (policy added), publish is delivered, unsubs
     await page.getByLabel("Endpoint").fill("someone@example.com");
     await page.getByRole("dialog").getByRole("button", { name: "Subscribe" }).click();
     await expect(page.getByText("pending confirmation")).toBeVisible();
+    // SNS cannot remove a pending subscription: the button is there, disabled, not missing
+    await expect(page.getByRole("button", { name: "Cannot remove someone@example.com" })).toBeDisabled();
 
     // Beautify shows only for JSON, and re-indents it
     await page.getByRole("tab", { name: "Publish" }).click();

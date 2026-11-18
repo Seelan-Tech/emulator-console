@@ -9,7 +9,7 @@
 
 ## Subscriptions
 
-On a topic, **Subscriptions** lists who receives messages. **Subscribe** asks for a **Protocol** (`sqs`, `lambda`, `http`, `https`, `email` or `sms`) and an **Endpoint**. Only `sqs` and `lambda` subscriptions receive messages: the emulator never confirms the others (it sends no confirmation message), so they stay pending and nothing is delivered to them. The dialog marks them as "will not deliver". An `http` subscription takes an `http://` URL and an `https` one an `https://` URL (SNS rejects anything else with `InvalidParameter: Endpoint`); the dialog says what is wrong with the URL and trims stray spaces.
+On a topic, **Subscriptions** lists who receives messages. **Subscribe** asks for a **Protocol** (`sqs`, `lambda`, `http`, `https`, `email` or `sms`) and an **Endpoint**. Only `sqs` and `lambda` subscriptions receive messages: the emulator never confirms the others (it sends no confirmation message), so they stay pending and nothing is delivered to them. SNS (the emulator and real AWS alike) refuses to unsubscribe a subscription that is pending confirmation (`Cannot unsubscribe a subscription that is pending confirmation`), so the console shows its delete button disabled; such a subscription goes away only when you delete the topic. The dialog marks them as "will not deliver". An `http` subscription takes an `http://` URL and an `https` one an `https://` URL (SNS rejects anything else with `InvalidParameter: Endpoint`); the dialog says what is wrong with the URL and trims stray spaces.
 
 When the protocol is `sqs` (or `lambda`) you pick one of your queues (or functions) from a list. These switches matter:
 

@@ -267,7 +267,17 @@ export function SnsTopicView({ topic }: { topic: string }) {
                           />
                         </TD>
                         <TD className="text-right">
-                          {!pending && (
+                          {pending ? (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled
+                              aria-label={`Cannot remove ${s.Endpoint}`}
+                              title="SNS cannot remove a subscription that is pending confirmation; it goes away when the topic is deleted."
+                            >
+                              <Trash2 />
+                            </Button>
+                          ) : (
                             <Button
                               size="icon-sm"
                               variant="ghost"
@@ -286,7 +296,8 @@ export function SnsTopicView({ topic }: { topic: string }) {
             )}
             <p className="mt-2 text-xs text-muted-foreground">
               Email, SMS and HTTP(S) subscriptions stay pending and receive nothing: the emulator doesn&apos;t send
-              confirmation messages.
+              confirmation messages. SNS cannot unsubscribe a pending subscription, so these can only be removed by
+              deleting the topic.
             </p>
           </TabsContent>
 
@@ -439,7 +450,8 @@ function SubscribeDialog({
             {!deliversOnEmulator(protocol) && (
               <p className="text-xs text-warning" role="note">
                 The emulator never confirms {protocol} subscriptions, so published messages are not delivered to them.
-                Use sqs or lambda to receive messages.
+                Use sqs or lambda to receive messages. A pending subscription cannot be removed afterwards, except by
+                deleting the topic.
               </p>
             )}
           </div>
