@@ -93,11 +93,13 @@ const globMatch = (pattern: string, value: string) =>
     "i",
   ).test(value);
 
+const SNS_SERVICE = "sns.amazonaws.com";
+
 function principalIsSns(p: unknown): boolean {
   if (p === "*") return true;
   if (!p || typeof p !== "object") return false;
   const o = p as Record<string, string | string[]>;
-  return list(o.Service).includes("sns.amazonaws.com") || list(o.AWS).includes("*");
+  return list(o.Service).some((v) => v === SNS_SERVICE) || list(o.AWS).some((v) => v === "*");
 }
 
 // Does the resource policy let SNS call `action` for this topic? Statements that name another topic do not count;
