@@ -5,11 +5,15 @@ import { test } from "vitest";
 import {
   addTopicToQueuePolicy,
   arnName,
+  arnRegion,
   deliversOnEmulator,
+  endpointProblem,
   isFifoTopic,
   lambdaStatementId,
+  policyAllowsTopic,
   PROTOCOLS,
   queueArnFromUrl,
+  subscriptionHealth,
   supportsRawDelivery,
 } from "./logic";
 
@@ -62,4 +66,88 @@ test("the Lambda permission statement id names the region and the topic, and sta
     lambdaStatementId("arn:aws:sns:us-west-1:000000000000:test"),
   );
   assert.ok(lambdaStatementId(`arn:aws:sns:us-east-1:000000000000:${"a".repeat(200)}`).length <= 100);
+});
+
+const T = "arn:aws:sns:us-west-1:000000000000:test";
+const allow = (extra: object = {}) =>
+  JSON.stringify({
+    Version: "2012-10-17",
+    Statement: [
+      { Effect: "Allow", Principal: { Service: "sns.amazonaws.com" }, Action: "lambda:InvokeFunction", ...extra },
+    ],
+  });
+
+test("arnRegion reads the region of an ARN", () => {
+  assert.equal(arnRegion("arn:aws:lambda:eu-west-1:000000000000:function:f"), "eu-west-1");
+  assert.equal(arnRegion("my-function"), undefined);
+});
+
+test("a policy allows the topic when SNS may call the action for it", () => {
+  const cond = (op: string, v: string | string[]) => ({ Condition: { [op]: { "AWS:SourceArn": v } } });
+  assert.equal(policyAllowsTopic(allow(cond("ArnLike", T)), T, "lambda:InvokeFunction"), true);
+  assert.equal(policyAllowsTopic(allow(cond("ArnEquals", T)), T, "lambda:InvokeFunction"), true);
+  assert.equal(policyAllowsTopic(allow(cond("ArnEquals", [T, "x"])), T, "lambda:InvokeFunction"), true);
+  assert.equal(policyAllowsTopic(allow(cond("ArnLike", "arn:aws:sns:*:*:test")), T, "lambda:InvokeFunction"), true);
+  // no source condition (or only an account condition): any topic
+  assert.equal(policyAllowsTopic(allow(), T, "lambda:InvokeFunction"), true);
+  assert.equal(
+    policyAllowsTopic(
+      allow({ Condition: { StringEquals: { "AWS:SourceAccount": "000000000000" } } }),
+      T,
+      "lambda:InvokeFunction",
+    ),
+    true,
+  );
+  assert.equal(policyAllowsTopic(allow({ Action: ["lambda:*"] }), T, "lambda:InvokeFunction"), true);
+  assert.equal(policyAllowsTopic(allow({ Principal: "*" }), T, "lambda:InvokeFunction"), true);
+});
+
+test("a policy does not allow the topic when it names another topic, action or principal, or is missing", () => {
+  const other = { Condition: { ArnLike: { "AWS:SourceArn": "arn:aws:sns:us-west-1:000000000000:other" } } };
+  assert.equal(policyAllowsTopic(allow(other), T, "lambda:InvokeFunction"), false);
+  assert.equal(policyAllowsTopic(allow({ Action: "lambda:GetFunction" }), T, "lambda:InvokeFunction"), false);
+  assert.equal(
+    policyAllowsTopic(allow({ Principal: { Service: "s3.amazonaws.com" } }), T, "lambda:InvokeFunction"),
+    false,
+  );
+  assert.equal(policyAllowsTopic(allow({ Effect: "Deny" }), T, "lambda:InvokeFunction"), false);
+  assert.equal(policyAllowsTopic(undefined, T, "lambda:InvokeFunction"), false);
+  assert.equal(policyAllowsTopic("{not json", T, "lambda:InvokeFunction"), false);
+});
+
+test("the policy written by addTopicToQueuePolicy is recognised as allowing the topic", () => {
+  const q = "arn:aws:sqs:us-west-1:000000000000:q";
+  assert.equal(policyAllowsTopic(addTopicToQueuePolicy(undefined, q, T), T, "sqs:SendMessage"), true);
+  assert.equal(
+    policyAllowsTopic(
+      addTopicToQueuePolicy(undefined, q, T),
+      "arn:aws:sns:us-west-1:000000000000:other",
+      "sqs:SendMessage",
+    ),
+    false,
+  );
+});
+
+test("subscription health: missing endpoint, no permission, permission", () => {
+  assert.equal(subscriptionHealth("lambda", { exists: false }, T), "missing");
+  assert.equal(subscriptionHealth("lambda", { exists: true }, T), "needs-permission");
+  assert.equal(subscriptionHealth("lambda", { exists: true, policy: allow() }, T), "delivers");
+  // the action depends on the protocol
+  assert.equal(subscriptionHealth("sqs", { exists: true, policy: allow() }, T), "needs-permission");
+});
+
+test("endpointProblem explains what an http or https endpoint is missing", () => {
+  assert.equal(endpointProblem("http", "http://localhost:8080/hook?a=1&b=2"), undefined);
+  assert.equal(endpointProblem("https", "HTTPS://example.com/h"), undefined);
+  assert.equal(endpointProblem("http", "  http://example.com/h "), undefined); // trimmed before sending
+  assert.equal(endpointProblem("http", ""), undefined); // nothing typed yet
+  assert.match(endpointProblem("http", "example.com/hook")!, /starts with http:\/\//);
+  assert.match(endpointProblem("http", "localhost:8080/hook")!, /starts with http:\/\//);
+  assert.match(endpointProblem("http", "https://example.com/h")!, /choose the https protocol/);
+  assert.match(endpointProblem("https", "http://example.com/h")!, /choose the http protocol/);
+  assert.match(endpointProblem("http", "ftp://example.com/h")!, /ftp:\/\/ is not supported/);
+  assert.match(endpointProblem("http", "http://")!, /not a valid URL/);
+  // other protocols are not judged here
+  assert.equal(endpointProblem("sqs", "arn:aws:sqs:us-east-1:000000000000:q"), undefined);
+  assert.equal(endpointProblem("email", "nobody"), undefined);
 });

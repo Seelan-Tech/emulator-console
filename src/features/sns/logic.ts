@@ -50,5 +50,91 @@ export const endpointHint: Record<Protocol, string> = {
 // The emulator never confirms these subscriptions (no confirmation message is sent), so nothing is delivered to them.
 export const deliversOnEmulator = (p: Protocol) => p === "sqs" || p === "lambda";
 
+// What SNS (and the emulator) reject about an endpoint before it ever gets a confirmation message: an http subscription
+// takes an http:// URL and an https one an https:// URL, nothing else. Undefined when the endpoint looks usable.
+export function endpointProblem(protocol: Protocol, endpoint: string): string | undefined {
+  const e = endpoint.trim();
+  if (!e || (protocol !== "http" && protocol !== "https")) return undefined;
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(e)?.[1]?.toLowerCase();
+  if (!scheme) return `An ${protocol} endpoint is a URL that starts with ${protocol}://`;
+  if (scheme !== "http" && scheme !== "https") return `${scheme}:// is not supported: use an http:// or https:// URL`;
+  if (scheme !== protocol)
+    return `This is an ${scheme}:// URL: choose the ${scheme} protocol for it (an ${protocol} subscription needs ${protocol}://)`;
+  try {
+    if (!new URL(e).hostname) throw new Error("no host");
+  } catch {
+    return "This is not a valid URL";
+  }
+  return undefined;
+}
+
 // Raw delivery only applies to endpoints that receive the message body directly.
 export const supportsRawDelivery = (p: Protocol) => p === "sqs" || p === "http" || p === "https";
+
+// --- Subscription health: will the emulator deliver to this subscription? -----------------------------------------
+
+export const arnRegion = (arn: string) => arn.split(":")[3] || undefined;
+
+type Cond = Record<string, Record<string, string | string[]>>;
+type Stmt = {
+  Effect?: string;
+  Principal?: unknown;
+  Action?: string | string[];
+  Condition?: Cond;
+};
+
+const list = <T>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
+const globMatch = (pattern: string, value: string) =>
+  new RegExp(
+    `^${pattern
+      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+      .replace(/\*/g, ".*")
+      .replace(/\?/g, ".")}$`,
+    "i",
+  ).test(value);
+
+const SNS_SERVICE = "sns.amazonaws.com";
+
+function principalIsSns(p: unknown): boolean {
+  if (p === "*") return true;
+  if (!p || typeof p !== "object") return false;
+  const o = p as Record<string, string | string[]>;
+  return list(o.Service).some((v) => v === SNS_SERVICE) || list(o.AWS).some((v) => v === "*");
+}
+
+// Does the resource policy let SNS call `action` for this topic? Statements that name another topic do not count;
+// a statement with no source condition (or only other conditions, such as the account) allows any topic.
+export function policyAllowsTopic(policy: string | undefined, topicArn: string, action: string): boolean {
+  if (!policy) return false;
+  let statements: Stmt[];
+  try {
+    const p = JSON.parse(policy) as { Statement?: Stmt | Stmt[] };
+    statements = list(p.Statement);
+  } catch {
+    return false;
+  }
+  return statements.some((s) => {
+    if (s.Effect !== "Allow" || !principalIsSns(s.Principal)) return false;
+    if (!list(s.Action).some((a) => a === "*" || globMatch(a, action))) return false;
+    for (const [op, keys] of Object.entries(s.Condition ?? {})) {
+      for (const [key, v] of Object.entries(keys)) {
+        if (key.toLowerCase() !== "aws:sourcearn") continue;
+        const wanted = list(v);
+        const matches = /like/i.test(op) ? wanted.some((w) => globMatch(w, topicArn)) : wanted.includes(topicArn);
+        if (!matches) return false;
+      }
+    }
+    return true;
+  });
+}
+
+export type Health = "delivers" | "needs-permission" | "missing" | "unknown";
+
+// What was found at the endpoint: it does not exist, or it exists (with its resource policy, if it has one).
+export type EndpointState = { exists: false } | { exists: true; policy?: string };
+
+export function subscriptionHealth(protocol: string, endpoint: EndpointState, topicArn: string): Health {
+  if (!endpoint.exists) return "missing";
+  const action = protocol === "lambda" ? "lambda:InvokeFunction" : "sqs:SendMessage";
+  return policyAllowsTopic(endpoint.policy, topicArn, action) ? "delivers" : "needs-permission";
+}

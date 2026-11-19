@@ -24,20 +24,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type AttrRow, toMessageAttributes } from "@/features/sqs/logic";
-import { OpError, useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
+import { useMutateOp, useOp, useRunOp } from "@/lib/aws-client";
 
+import { useSubscriptionHealth } from "./health";
 import {
-  addTopicToQueuePolicy,
   arnName,
   deliversOnEmulator,
   endpointHint,
+  endpointProblem,
+  type Health,
   isFifoTopic,
-  lambdaStatementId,
   type Protocol,
   PROTOCOLS,
   queueArnFromUrl,
   supportsRawDelivery,
 } from "./logic";
+import { allowTopicOnFunction, allowTopicOnQueue } from "./permissions";
 
 type Sub = { SubscriptionArn: string; Protocol: string; Endpoint: string };
 
@@ -90,6 +92,26 @@ export function SnsTopicView({ topic }: { topic: string }) {
   }
 
   const list = subs.data?.Subscriptions ?? [];
+  const health = useSubscriptionHealth(TopicArn, list);
+  const attention = list.filter((s) => {
+    const h = health.data?.[s.SubscriptionArn];
+    return h === "needs-permission" || h === "missing";
+  }).length;
+  const runOp = useRunOp();
+  const [fixing, setFixing] = useState<string | null>(null);
+  async function fix(s: Sub) {
+    if (!TopicArn) return;
+    setFixing(s.SubscriptionArn);
+    try {
+      if (s.Protocol === "lambda") await allowTopicOnFunction(runOp, s.Endpoint, TopicArn);
+      else await allowTopicOnQueue(runOp, s.Endpoint, TopicArn);
+      toast.success("Allowed this topic");
+      await health.refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+    setFixing(null);
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl p-6">
@@ -114,7 +136,10 @@ export function SnsTopicView({ topic }: { topic: string }) {
         <Tabs defaultValue="publish">
           <TabsList>
             <TabsTrigger value="publish">Publish</TabsTrigger>
-            <TabsTrigger value="subscriptions">Subscriptions ({list.length})</TabsTrigger>
+            <TabsTrigger value="subscriptions">
+              Subscriptions ({list.length}
+              {attention > 0 ? `, ${attention} need${attention === 1 ? "s" : ""} attention` : ""})
+            </TabsTrigger>
             <TabsTrigger value="attributes">Attributes</TabsTrigger>
           </TabsList>
 
@@ -212,6 +237,7 @@ export function SnsTopicView({ topic }: { topic: string }) {
                     <TH>Protocol</TH>
                     <TH>Endpoint</TH>
                     <TH>Status</TH>
+                    <TH>Delivery</TH>
                     <TH className="text-right">Actions</TH>
                   </TR>
                 </THead>
@@ -231,8 +257,27 @@ export function SnsTopicView({ topic }: { topic: string }) {
                             <Badge variant="success">confirmed</Badge>
                           )}
                         </TD>
+                        <TD>
+                          <DeliveryCell
+                            sub={s}
+                            health={health.data?.[s.SubscriptionArn]}
+                            loading={health.isLoading}
+                            fixing={fixing === s.SubscriptionArn}
+                            onFix={() => fix(s)}
+                          />
+                        </TD>
                         <TD className="text-right">
-                          {!pending && (
+                          {pending ? (
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              disabled
+                              aria-label={`Cannot remove ${s.Endpoint}`}
+                              title="SNS cannot remove a subscription that is pending confirmation; it goes away when the topic is deleted."
+                            >
+                              <Trash2 />
+                            </Button>
+                          ) : (
                             <Button
                               size="icon-sm"
                               variant="ghost"
@@ -251,7 +296,8 @@ export function SnsTopicView({ topic }: { topic: string }) {
             )}
             <p className="mt-2 text-xs text-muted-foreground">
               Email, SMS and HTTP(S) subscriptions stay pending and receive nothing: the emulator doesn&apos;t send
-              confirmation messages.
+              confirmation messages. SNS cannot unsubscribe a pending subscription, so these can only be removed by
+              deleting the topic.
             </p>
           </TabsContent>
 
@@ -264,6 +310,57 @@ export function SnsTopicView({ topic }: { topic: string }) {
         <SubscribeDialog open={subscribing} onOpenChange={setSubscribing} topicArn={TopicArn} region={region} />
       )}
     </div>
+  );
+}
+
+const HEALTH_LABEL: Record<
+  Health,
+  { text: string; variant: "success" | "warning" | "destructive" | "outline"; hint: string }
+> = {
+  delivers: { text: "delivers", variant: "success", hint: "The endpoint allows this topic." },
+  "needs-permission": {
+    text: "needs permission",
+    variant: "warning",
+    hint: "The endpoint exists but does not allow this topic, so SNS cannot deliver to it.",
+  },
+  missing: { text: "endpoint missing", variant: "destructive", hint: "The function or queue does not exist." },
+  unknown: { text: "unknown", variant: "outline", hint: "The check failed." },
+};
+
+function DeliveryCell({
+  sub,
+  health,
+  loading,
+  fixing,
+  onFix,
+}: {
+  sub: Sub;
+  health: Health | undefined;
+  loading: boolean;
+  fixing: boolean;
+  onFix: () => void;
+}) {
+  if (sub.SubscriptionArn === "PendingConfirmation" || !deliversOnEmulator(sub.Protocol as Protocol))
+    return <Badge variant="outline">will not deliver</Badge>;
+  if (!health) return loading ? <Skeleton className="h-5 w-20" /> : null;
+  const l = HEALTH_LABEL[health];
+  return (
+    <span className="flex items-center gap-2">
+      <Badge variant={l.variant} title={l.hint}>
+        {l.text}
+      </Badge>
+      {health === "needs-permission" && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={fixing}
+          onClick={onFix}
+          aria-label={`Allow topic on ${sub.Endpoint}`}
+        >
+          {fixing ? <Spinner /> : null} Fix
+        </Button>
+      )}
+    </span>
   );
 }
 
@@ -301,39 +398,19 @@ function SubscribeDialog({
         ? (fns.data?.Functions ?? []).map((f) => f.FunctionArn)
         : [];
 
+  const problem = endpointProblem(protocol, endpoint);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const target = endpoint.trim(); // a leading space is rejected as an invalid endpoint
     setBusy(true);
     try {
-      if (protocol === "sqs" && allow) {
-        const queueName = arnName(endpoint);
-        const { QueueUrl } = await runOp<{ QueueUrl: string }>("sqs", "GetQueueUrl", { QueueName: queueName });
-        const { Attributes } = await runOp<{ Attributes?: { Policy?: string } }>("sqs", "GetQueueAttributes", {
-          QueueUrl,
-          AttributeNames: ["Policy"],
-        });
-        await runOp("sqs", "SetQueueAttributes", {
-          QueueUrl,
-          Attributes: { Policy: addTopicToQueuePolicy(Attributes?.Policy, endpoint, topicArn) },
-        });
-      }
-      if (protocol === "lambda" && allowFn) {
-        // Without this permission SNS cannot invoke the function, and nothing tells you so.
-        await runOp("lambda", "AddPermission", {
-          FunctionName: endpoint,
-          StatementId: lambdaStatementId(topicArn),
-          Action: "lambda:InvokeFunction",
-          Principal: "sns.amazonaws.com",
-          SourceArn: topicArn,
-        }).catch((e: unknown) => {
-          // already allowed (this topic was subscribed before): nothing to add
-          if (!(e instanceof OpError && e.awsName === "ResourceConflictException")) throw e;
-        });
-      }
+      if (protocol === "sqs" && allow) await allowTopicOnQueue(runOp, target, topicArn);
+      if (protocol === "lambda" && allowFn) await allowTopicOnFunction(runOp, target, topicArn);
       await runOp("sns", "Subscribe", {
         TopicArn: topicArn,
         Protocol: protocol,
-        Endpoint: endpoint,
+        Endpoint: target,
         ReturnSubscriptionArn: true,
         ...(raw && supportsRawDelivery(protocol) ? { Attributes: { RawMessageDelivery: "true" } } : {}),
       });
@@ -373,7 +450,8 @@ function SubscribeDialog({
             {!deliversOnEmulator(protocol) && (
               <p className="text-xs text-warning" role="note">
                 The emulator never confirms {protocol} subscriptions, so published messages are not delivered to them.
-                Use sqs or lambda to receive messages.
+                Use sqs or lambda to receive messages. A pending subscription cannot be removed afterwards, except by
+                deleting the topic.
               </p>
             )}
           </div>
@@ -387,7 +465,14 @@ function SubscribeDialog({
               value={endpoint}
               onChange={(e) => setEndpoint(e.target.value)}
               autoComplete="off"
+              aria-invalid={!!problem}
+              aria-describedby={problem ? "sub-ep-problem" : undefined}
             />
+            {problem && (
+              <p id="sub-ep-problem" className="text-xs text-destructive" role="alert">
+                {problem}
+              </p>
+            )}
             <datalist id="sub-suggestions">
               {suggestions.map((s) => (
                 <option key={s} value={s} />
@@ -426,7 +511,7 @@ function SubscribeDialog({
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button disabled={!endpoint || busy}>{busy && <Spinner />} Subscribe</Button>
+            <Button disabled={!endpoint.trim() || !!problem || busy}>{busy && <Spinner />} Subscribe</Button>
           </DialogFooter>
         </form>
       </DialogContent>
