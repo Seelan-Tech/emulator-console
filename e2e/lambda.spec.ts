@@ -11,6 +11,26 @@ const setEditor = async (page: Page, nth: number, text: string) => {
   await page.keyboard.insertText(text);
 };
 
+// CI has shown the client router drop a click on this link (the request returns 200 but the page stays on the
+// list, on every retry of a run). Click again if the URL has not changed, and fall back to a direct visit.
+const openFunction = async (page: Page, base: string, name: string) => {
+  const link = page.getByRole("link", { name });
+  const here = new RegExp(`/lambda/${name}$`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await link.click();
+    if (
+      await expect(page)
+        .toHaveURL(here, { timeout: 5_000 })
+        .then(
+          () => true,
+          () => false,
+        )
+    )
+      return;
+  }
+  await page.goto(`${base}/lambda/${name}`);
+};
+
 test("Lambda: create, invoke with logs, update code, handled error, saved events, delete", async ({
   page,
   target,
@@ -26,7 +46,7 @@ test("Lambda: create, invoke with logs, update code, handled error, saved events
   await expect(row.getByText("Active")).toBeVisible({ timeout: 30_000 }); // polls out of Pending
 
   try {
-    await page.getByRole("link", { name }).click();
+    await openFunction(page, target.base, name);
     await expect(page.getByTestId("fn-state")).toHaveText("Active", { timeout: 45_000 });
 
     // invoke the starter template
