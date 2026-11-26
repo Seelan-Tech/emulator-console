@@ -21,6 +21,8 @@ Everything the console does goes through a JSON API under `/api`. You can call i
 | `POST /api/targets/:tid/restart/ack` | Dismiss the restart banner |
 | `POST /api/targets/:tid/baseline/replay` | Replay the baseline fixture now |
 | `GET`, `PUT`, `DELETE /api/fixtures/:fid` | Read, edit, delete a fixture |
+| `GET /api/fixtures/export` | Every fixture as one file (`emulator-console-fixtures.json`) |
+| `POST /api/fixtures/import` | Import a fixture file: `{ "text", "onConflict": "rename" \| "replace" \| "skip", "dryRun" }`. `dryRun` answers what would happen and saves nothing |
 | `POST /api/fixtures/:fid/run` | Replay: `{ "targetId", "continueOnError" }` |
 | `GET /api/fixtures/:fid/runs` | Run history |
 

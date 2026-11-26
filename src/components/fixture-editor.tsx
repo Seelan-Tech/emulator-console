@@ -8,6 +8,7 @@ import { AssertionAdder } from "@/components/assertion-adder";
 import { CodeEditor } from "@/components/code-editor";
 import { ConfirmDialog, Spinner } from "@/components/common";
 import { CopyCliButton } from "@/components/copy-cli-button";
+import { ExportButton } from "@/components/fixture-share";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import type { FixtureRunView, StepResult } from "@/lib/api-types";
 import { cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
 import type { Problem } from "@/lib/fixture-check";
+import { fileSlug, fixtureFile } from "@/lib/fixture-file";
 import { assertionSummary } from "@/lib/fixture-summary";
 import { resumePlan } from "@/lib/fixture-vars";
 import type { Step } from "@/lib/schemas";
@@ -215,6 +217,22 @@ export function FixtureEditor(props: {
               command={() => {
                 const parsed: unknown = JSON.parse(steps);
                 return Array.isArray(parsed) ? cliScript(parsed as Parameters<typeof cliScript>[0]) : null;
+              }}
+            />
+            <ExportButton
+              label="Export"
+              prepare={async () => {
+                let parsed: unknown;
+                try {
+                  parsed = JSON.parse(steps);
+                } catch (e) {
+                  throw new Error(`Steps are not valid JSON: ${(e as Error).message}`);
+                }
+                if (!Array.isArray(parsed)) throw new Error("Steps must be a JSON array");
+                return {
+                  filename: `${fileSlug(name)}.fixture.json`,
+                  text: fixtureFile({ name, description, steps: parsed as unknown[] }),
+                };
               }}
             />
             <Button variant="ghost" onClick={() => setDeleting(true)}>
