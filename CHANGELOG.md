@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format is based on
 - A **Delivery** column on an SNS topic's subscriptions: **delivers**, **needs permission** (with a **Fix** button that adds the missing function or queue policy statement), **endpoint missing** or **unknown**, and a count in the tab title. Before, a Lambda or queue subscribed from the CLI or an SDK without the permission silently received nothing.
 - **Copy as AWS CLI**: the operation runner copies the request as an `aws` command, and the recorder drawer and fixture editor copy a step, or all steps as a script (with a `sleep` where a replay pauses). The activity log still stores no inputs.
 
+### Fixed
+
+- The Lambda **Logs** tab no longer shows an empty extra run for a cold start on newer emulators, which write an `INIT_START` line before the first `START`.
+
 ## [0.3.0] - 2026-11-17
 
 ### Added
