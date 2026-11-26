@@ -72,7 +72,8 @@ All notable changes to this project are documented here. The format is based on
 - Docker Compose stack: the emulator (pinned to a version and verified against AWS's signature, telemetry off by default) and the console, with its data in a SQLite file.
 - User guide in `docs/`.
 
-[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Seelan-Tech/emulator-console/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Seelan-Tech/emulator-console/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Seelan-Tech/emulator-console/releases/tag/v0.1.0
