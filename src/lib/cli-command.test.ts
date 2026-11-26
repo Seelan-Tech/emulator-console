@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { test } from "vitest";
 
@@ -160,14 +163,18 @@ test("every exported matcher is tested the way the engine tests it", () => {
 
 test("an assertion with retries tries again until it holds, then stops", () => {
   const steps = [read("GetQueueAttributes", [{ path: "Attributes.N", equals: "0" }], { retries: 2 })];
+  const dir = mkdtempSync(join(tmpdir(), "ec-retry-"));
+  const counter = join(dir, "count");
+  // answers 5 until the given call, then 0
   const flaky = (holdsOnCall: number) =>
-    `n=$(cat "$TMPDIR/ec-count" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$TMPDIR/ec-count"; if [ $n -ge ${holdsOnCall} ]; then echo 0; else echo 5; fi`;
-  const clear = () => spawnSync("bash", ["-c", 'rm -f "$TMPDIR/ec-count"']);
-  clear();
-  assert.equal(runScript(steps, flaky(3)).code, 0); // the third try holds
-  clear();
-  assert.equal(runScript(steps, flaky(4)).code, 1); // would hold on the fourth: only three tries
-  clear();
+    `n=$(cat '${counter}' 2>/dev/null || echo 0); n=$((n+1)); echo $n > '${counter}'; if [ $n -ge ${holdsOnCall} ]; then echo 0; else echo 5; fi`;
+  try {
+    assert.equal(runScript(steps, flaky(3)).code, 0); // the third try holds
+    rmSync(counter);
+    assert.equal(runScript(steps, flaky(4)).code, 1); // would hold on the fourth: only three tries
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
   assert.match(cliScript(steps), /for ec_try in 1 2 3; do/);
 });
 
