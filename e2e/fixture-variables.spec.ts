@@ -85,23 +85,24 @@ test("Check reads a fixture without calling the emulator, and a failed run resum
     ).json();
     expect(bad.problems.map((p: any) => `${p.step} ${p.level} ${p.message}`)).toEqual([
       "0 error Bucket is required",
-      "1 error uses {{nope}}, which no step captures",
       "1 warning Quue is not a field of this operation (it is ignored)",
+      "1 error uses {{nope}}, which no step captures",
     ]);
 
     await page.goto(`/fixtures/${fixture.id}`);
     await page.getByRole("button", { name: "Check" }).click();
-    await expect(page.getByTestId("check-result")).toContainText("No problems found");
+    // only the warning that the SendMessage step sends again: no errors, nothing was sent
+    await expect(page.getByTestId("check-result")).toHaveText("Step 4 SendMessage sends again on every replay");
 
     // step 3 fails: the bucket it reads does not exist yet
     await page.getByRole("button", { name: /Save & run/ }).click();
-    await expect(page.getByText("Run failed")).toBeVisible({ timeout: 40_000 });
+    await expect(page.getByText("Run failed", { exact: true })).toBeVisible({ timeout: 40_000 });
     await expect(page.getByRole("button", { name: "Resume from step 3" })).toBeVisible();
 
     // fix the cause, then resume: step 1 is not run again, step 2 is (step 4 needs its value)
     await call("s3", "CreateBucket", { Bucket: other });
     await page.getByRole("button", { name: "Resume from step 3" }).click();
-    await expect(page.getByText("Run succeeded")).toBeVisible({ timeout: 40_000 });
+    await expect(page.getByText("Run succeeded", { exact: true })).toBeVisible({ timeout: 40_000 });
     await expect(page.getByTestId("fixture-results").getByRole("row")).toHaveCount(4); // header + steps 2, 3, 4
     await expect(page.getByTestId("fixture-results")).toContainText("kept url");
 
