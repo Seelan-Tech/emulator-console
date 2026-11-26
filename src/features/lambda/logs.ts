@@ -21,6 +21,9 @@ export type Invocation = {
 const START = /^START RequestId: (\S+)/;
 const END = /^END RequestId: (\S+)/;
 const REPORT = /^REPORT RequestId: (\S+)/;
+// Platform lines that belong to no invocation: on a cold start the runtime writes `INIT_START Runtime Version: …`
+// before the first START (newer emulators do, as AWS does), and `INIT_REPORT` or `RESTORE_*` lines around it.
+const PLATFORM = /^(INIT_START|INIT_REPORT|RESTORE_START|RESTORE_REPORT)\b/;
 // What the runtime itself prints when the function fails (the function's own console.error or logging output is not a
 // failure). Python: "[ERROR] ValueError: boom" (a space; logging.error() uses a tab). Node: "<time>\t<id>\tERROR\tInvoke
 // Error \t{json with errorType and errorMessage}".
@@ -79,7 +82,7 @@ export function groupInvocations(events: LogEvent[]): Invocation[] {
       }
       continue;
     }
-    if (END.test(msg)) continue;
+    if (END.test(msg) || PLATFORM.test(msg)) continue;
     const inv = current.get(stream) ?? open(stream, { requestId: "", lines: [], status: "running" });
     inv.lines.push(msg);
     const err = failure(msg);
