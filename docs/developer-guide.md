@@ -85,7 +85,7 @@ Docs are versioned by git tag: every release tag contains the guide as it was, a
 
 ## Releasing
 
-1. Make sure `main` is green, and move the `CHANGELOG.md` entries from "Unreleased" under the new version.
+1. Make sure `main` is green, and move the `CHANGELOG.md` entries from "Unreleased" under the new version, and update the link definitions at the bottom (add the new version, and point `[Unreleased]` at it).
 2. Regenerate the dependency notices with `npm ci && npm run notices` and commit them if they changed.
 3. Set the version in `package.json`, then tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
 4. The release workflow builds a multi-arch console image, pushes it to `ghcr.io/seelan-tech/emulator-console` and creates the GitHub release with generated notes. The emulator image is never published: it is built locally from AWS's signed package.
