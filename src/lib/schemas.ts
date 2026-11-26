@@ -50,6 +50,37 @@ export const targetUpdate = z
   })
   .partial();
 
+// A check on a step's response: a path and exactly one matcher. `exists: false` means the path has no value.
+const MATCHERS = ["equals", "notEquals", "contains", "exists", "length", "gt", "gte", "lt", "lte", "matches"] as const;
+export const expectation = z
+  .object({
+    path: z.string().regex(VAR_PATH).max(200),
+    equals: z.unknown().optional(),
+    notEquals: z.unknown().optional(),
+    contains: z.unknown().optional(),
+    exists: z.boolean().optional(),
+    length: z.number().int().min(0).optional(),
+    gt: z.number().optional(),
+    gte: z.number().optional(),
+    lt: z.number().optional(),
+    lte: z.number().optional(),
+    matches: z.string().max(200).optional(),
+  })
+  .strict()
+  .superRefine((e, ctx) => {
+    const given = MATCHERS.filter((m) => Object.hasOwn(e, m));
+    if (given.length !== 1)
+      ctx.addIssue({ code: "custom", message: `give exactly one of ${MATCHERS.join(", ")} (found ${given.length})` });
+    if (e.matches !== undefined) {
+      try {
+        new RegExp(e.matches);
+      } catch {
+        ctx.addIssue({ code: "custom", path: ["matches"], message: "is not a valid regular expression" });
+      }
+    }
+  });
+export type Expectation = z.infer<typeof expectation>;
+
 export const step = z.object({
   service: z.enum(serviceNames),
   operation: z.string().regex(/^[A-Za-z0-9]{1,100}$/),
@@ -60,6 +91,8 @@ export const step = z.object({
   retryDelayMs: z.number().int().min(100).max(30_000).default(1000),
   // Values to keep from the response for later steps: { variableName: "Path.In.Response" }.
   capture: z.record(z.string().regex(VAR_NAME).max(60), z.string().regex(VAR_PATH).max(200)).optional(),
+  // An assertion: checks on the response. A step that fails them is retried like any failed step (`retries`).
+  expect: z.array(expectation).min(1).max(20).optional(),
 });
 export type Step = z.infer<typeof step>;
 

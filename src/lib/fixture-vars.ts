@@ -56,13 +56,16 @@ export function substitute(value: unknown, vars: Vars): { value: unknown; missin
 
 // Resuming a failed run from step `from` (0-based). A step that captures a value a later step uses has to run again
 // (its value is not kept), so the plan is the steps from `from` plus those capture steps, in order.
-export function resumePlan(steps: { input?: unknown; capture?: Record<string, string> }[], from: number): number[] {
+export function resumePlan(
+  steps: { input?: unknown; expect?: unknown; capture?: Record<string, string> }[],
+  from: number,
+): number[] {
   const run = new Set<number>();
   for (let i = from; i < steps.length; i++) run.add(i);
   const queue = [...run];
   while (queue.length) {
     const i = queue.pop()!;
-    for (const name of referencedVars(steps[i]!.input)) {
+    for (const name of referencedVars([steps[i]!.input, steps[i]!.expect])) {
       const source = steps.findLastIndex((t, j) => j < i && t.capture && name in t.capture);
       if (source >= 0 && !run.has(source)) {
         run.add(source);
