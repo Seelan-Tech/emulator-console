@@ -51,17 +51,18 @@ export function TargetSettings({
   const [baseline, setBaseline] = useState("");
   const [auto, setAuto] = useState(false);
   const [busy, setBusy] = useState(false);
-  // The form is filled from the saved settings when they arrive, unless the user has already changed something
-  // (the fixtures can load first): their choice must not be overwritten by a late response or a refetch.
-  const touched = useRef(false);
+  // The form is filled from the saved settings when they arrive, but a field the user has already changed keeps their
+  // choice (the fixtures can load first, and a refetch must not overwrite it). Each field is tracked on its own: picking
+  // a baseline before the saved settings arrive must not stop the saved "replay automatically" setting from loading.
+  const touchedBaseline = useRef(false);
+  const touchedAuto = useRef(false);
   useEffect(() => {
-    if (!open) touched.current = false;
+    if (!open) touchedBaseline.current = touchedAuto.current = false;
   }, [open]);
   useEffect(() => {
-    if (target.data && !touched.current) {
-      setBaseline(target.data.baselineFixtureId ?? "");
-      setAuto(target.data.autoReplay);
-    }
+    if (!target.data) return;
+    if (!touchedBaseline.current) setBaseline(target.data.baselineFixtureId ?? "");
+    if (!touchedAuto.current) setAuto(target.data.autoReplay);
   }, [target.data]);
   const canDetect = target.data?.canDetectRestart ?? false;
 
@@ -99,9 +100,12 @@ export function TargetSettings({
               id="baseline"
               value={baseline}
               onChange={(e) => {
-                touched.current = true;
+                touchedBaseline.current = true;
                 setBaseline(e.target.value);
-                if (!e.target.value) setAuto(false);
+                if (!e.target.value) {
+                  touchedAuto.current = true;
+                  setAuto(false);
+                }
               }}
             >
               <option value="">None</option>
@@ -116,7 +120,7 @@ export function TargetSettings({
             <Switch
               checked={auto && !!baseline && canDetect}
               onCheckedChange={(v) => {
-                touched.current = true;
+                touchedAuto.current = true;
                 setAuto(v);
               }}
               disabled={!baseline || !canDetect}
