@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Fixture variables**: a step can keep values from its response (`capture`) and later steps use them as `{{name}}`, for ids the emulator makes up. A step that uses a variable nothing has set fails without calling the emulator, the history shows which names a step kept (never the values), and **Copy as AWS CLI script** turns them into shell variables.
 - A pending SNS subscription (http, https, email, sms) shows its delete button disabled, with the reason, instead of no button at all: SNS cannot unsubscribe a pending subscription, so it is removed only by deleting the topic. The Subscribe dialog says so up front.
 - The SNS Subscribe dialog checks `http` and `https` endpoints (the URL must start with the protocol's own scheme) and says what is wrong, instead of the emulator's `InvalidParameter: Endpoint`.
 - A **Delivery** column on an SNS topic's subscriptions: **delivers**, **needs permission** (with a **Fix** button that adds the missing function or queue policy statement), **endpoint missing** or **unknown**, and a count in the tab title. Before, a Lambda or queue subscribed from the CLI or an SDK without the permission silently received nothing.

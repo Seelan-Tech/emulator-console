@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { serviceNames } from "./aws";
+import { VAR_NAME, VAR_PATH } from "./fixture-vars";
 
 const pem = z
   .string()
@@ -57,6 +58,8 @@ export const step = z.object({
   delayAfterMs: z.number().int().min(0).max(60_000).default(0),
   retries: z.number().int().min(0).max(20).default(0),
   retryDelayMs: z.number().int().min(100).max(30_000).default(1000),
+  // Values to keep from the response for later steps: { variableName: "Path.In.Response" }.
+  capture: z.record(z.string().regex(VAR_NAME).max(60), z.string().regex(VAR_PATH).max(200)).optional(),
 });
 export type Step = z.infer<typeof step>;
 

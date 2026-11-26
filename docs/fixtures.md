@@ -62,8 +62,35 @@ Each step is an object:
 | `delayAfterMs` | Pause after the step, 0 to 60 000. |
 | `retries` | Extra attempts if the step fails, 0 to 20. |
 | `retryDelayMs` | Wait between attempts, 100 to 30 000. |
+| `capture` | Optional. Values to keep from the response for later steps: see [Variables](#variables). |
 
 A fixture holds at most 500 steps. The editor reports invalid JSON before saving.
+
+### Variables
+
+A step can keep values from its response, and later steps can use them. This is for ids the emulator makes up (a KMS key id, an EC2 or IAM id, an execution ARN), and for replaying on a target whose port or region differs, where a queue URL is not the same.
+
+```json
+[
+  {
+    "service": "kms",
+    "operation": "CreateKey",
+    "input": {},
+    "capture": { "keyId": "KeyMetadata.KeyId" }
+  },
+  {
+    "service": "kms",
+    "operation": "CreateAlias",
+    "input": { "AliasName": "alias/app", "TargetKeyId": "{{keyId}}" }
+  }
+]
+```
+
+- `capture` maps a variable name (letters, digits and `_`, not starting with a digit) to a path in the response: `Attributes.QueueArn`, `Subnets[0].SubnetId`.
+- `{{name}}` can be used in any string of a later step's `input`. A string that is exactly `{{name}}` becomes the value itself, so numbers and lists keep their type; inside longer text the value is written as text.
+- A step that uses a name no earlier step has set fails without calling the emulator. A path that matches nothing fails the step, and it is not retried, because the call already went through.
+- Variables last for one run. The **History** shows the names a step kept (**kept keyId**), never the values, like step outputs.
+- **Copy as AWS CLI script** turns a capture into a shell variable (`read -r keyId <<<"$(aws … --query '[KeyMetadata.KeyId]' --output text)"`) and the references into `"$keyId"`. A reference inside a Lambda `Invoke` payload is not substituted in the script.
 
 ## Replaying
 
@@ -73,7 +100,7 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - The **History** shows every run: which target, when, the result, and per step the outcome, time and attempts. A run started by a restart is marked **after restart**.
 - Step outputs are not stored.
 
-Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step (a queue URL, say) needs editing by hand to use a name you control.
+Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder does not add variables yet, so a recorded fixture still needs them written by hand.
 
 Every recorded step runs, in order, including ones that undo each other: a bucket you created and later deleted is created and deleted again. A recorded `SendMessage` or `Publish` is sent again. Right after a restart the emulator may still refuse a step, for example when a queue name was deleted less than 60 seconds ago; use a step's retry settings or run the fixture again.
 
