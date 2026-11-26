@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { getPath, referencedVars, substitute, VAR_PATH } from "./fixture-vars";
+import { getPath, referencedVars, resumePlan, substitute, VAR_PATH } from "./fixture-vars";
 import { step } from "./schemas";
 
 test("getPath follows names and list positions", () => {
@@ -43,4 +43,25 @@ test("a step accepts capture entries with valid names and paths only", () => {
   assert.equal(step.safeParse({ service: "kms", operation: "X", capture: { "bad name": "A" } }).success, false);
   assert.equal(step.safeParse({ service: "kms", operation: "X", capture: { a: "A..B" } }).success, false);
   assert.ok(VAR_PATH.test("Subnets[0].SubnetId"));
+});
+
+test("resumePlan runs the steps from the failed one, and earlier steps that keep a value they use", () => {
+  const steps: Parameters<typeof resumePlan>[0] = [
+    { input: {}, capture: { a: "A" } },
+    { input: { x: "{{a}}" }, capture: { b: "B" } },
+    { input: {}, capture: { unused: "U" } },
+    { input: { y: "{{b}}" } },
+    { input: {} },
+  ];
+  assert.deepEqual(resumePlan(steps, 0), [0, 1, 2, 3, 4]);
+  assert.deepEqual(resumePlan(steps, 4), [4]);
+  // step 4 (index 3) needs b from index 1, which needs a from index 0
+  assert.deepEqual(resumePlan(steps, 3), [0, 1, 3, 4]);
+  // a name captured twice comes from the latest step before the user
+  const twice: Parameters<typeof resumePlan>[0] = [
+    { capture: { a: "A" } },
+    { capture: { a: "A" } },
+    { input: "{{a}}" },
+  ];
+  assert.deepEqual(resumePlan(twice, 2), [1, 2]);
 });

@@ -92,6 +92,15 @@ A step can keep values from its response, and later steps can use them. This is 
 - Variables last for one run. The **History** shows the names a step kept (**kept keyId**), never the values, like step outputs.
 - **Copy as AWS CLI script** turns a capture into a shell variable (`read -r keyId <<<"$(aws … --query '[KeyMetadata.KeyId]' --output text)"`) and the references into `"$keyId"`. A reference inside a Lambda `Invoke` payload is not substituted in the script.
 
+### Checking a fixture
+
+**Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
+
+- **Errors**: a step that is not valid, an operation the service does not have, a required field that is missing, a field of the wrong kind (a number where a string is expected), and a `{{name}}` that no earlier step captures (or that a later step captures).
+- **Warnings**: a field the operation does not have (the SDK ignores it, which is usually a typo), a step that sends again on every replay (`SendMessage`, `Publish`, `PutEvents`, `PutRecord`, `StartExecution`), and a `Delete…` that undoes an earlier `Create…` of the same thing. The last one is a best-effort match on the fields the delete names.
+
+A value that is a `{{name}}` is not judged, because it is only known during the replay. The check cannot tell whether a resource already exists on a target.
+
 ## Replaying
 
 In the editor, **Replay on a target** picks a target and **Save & run** executes the steps in order, saving any edits first.
@@ -99,6 +108,7 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - A step that fails stops the run, unless **Continue after a failed step** is ticked.
 - The **History** shows every run: which target, when, the result, and per step the outcome, time and attempts. A run started by a restart is marked **after restart**.
 - Step outputs are not stored.
+- A failed run has **Resume from step N** in the History. It runs the fixture again from the step that failed, on the target chosen under **Replay on a target**, and saves the editor first. The steps before it are not run again, except steps that [keep a value](#variables) a later step uses, since that value is gone: the button's tooltip names them. The run's results number the steps as in the fixture. If you edited the steps since the failed run, the step numbers may no longer match.
 
 Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder does not add variables yet, so a recorded fixture still needs them written by hand.
 

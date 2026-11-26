@@ -79,4 +79,10 @@ export const fixtureUpdate = z
   })
   .partial();
 
-export const runRequest = z.object({ targetId: z.string().uuid(), continueOnError: z.boolean().default(false) });
+export const runRequest = z.object({
+  targetId: z.string().uuid(),
+  continueOnError: z.boolean().default(false),
+  // Resume a failed run: the first step to run (0-based). Earlier steps are skipped, except those that capture a
+  // value a later step needs.
+  fromStep: z.number().int().min(0).max(499).optional(),
+});
