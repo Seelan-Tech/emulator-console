@@ -164,6 +164,30 @@ Replaying calls the API again; it does not restore state. A step that depends on
 
 Every recorded step runs, in order, including ones that undo each other: a bucket you created and later deleted is created and deleted again. A recorded `SendMessage` or `Publish` is sent again. Right after a restart the emulator may still refuse a step, for example when a queue name was deleted less than 60 seconds ago; use a step's retry settings or run the fixture again.
 
+## Sharing fixtures
+
+Since 0.5.0. A fixture can be saved as a file, committed next to the code it sets up, and imported on another machine.
+
+- **Export** in the fixture editor saves that fixture as `<name>.fixture.json`. **Export all** on the **Fixtures** page saves every fixture in one file, `emulator-console-fixtures.json`. `GET /api/fixtures/export` returns the same file, for scripts.
+- **Import** on the **Fixtures** page takes either kind of file, chosen or pasted. It first shows what would happen to each fixture: new, saved under a new name, replacing one, skipped, or not valid, with the number of problems **Check** finds and any steps that hold values that may be secret. Nothing is saved until you confirm.
+- If a name exists already, the import saves the new one as `name (2)` (the default), **replaces** the existing fixture's description and steps (its run history stays), or **skips** it. A file that names the same fixture twice, or a fixture that is not valid, is reported and the others are still imported.
+
+A file looks like this (a bundle has `"format": "emulator-console-fixtures"` and a `fixtures` list of the same objects):
+
+```json
+{
+  "format": "emulator-console-fixture",
+  "version": 1,
+  "name": "orders-baseline",
+  "description": "Queue, table and function for the orders tests",
+  "steps": [{ "service": "sqs", "operation": "CreateQueue", "input": { "QueueName": "orders" } }]
+}
+```
+
+Keys are in a fixed order, with two-space indents and a trailing newline, so a changed fixture is a small diff in git. A console reads files up to `version` 1 and refuses a newer one, saying so.
+
+**A file is plain text.** Steps keep the values they were recorded with: a secret value (`CreateSecret`, a `SecureString` parameter, a function's environment variables, an IAM login password) is in the file. The console asks before it saves such a file and names the steps. Replace the values with placeholders, or keep the file out of the repository, before you share it.
+
 ## Baseline fixture and automatic replay
 
 Open the target's settings (the gear in the header, or **Choose a baseline** in the restart banner). Choose a **Baseline fixture**, and switch on **Replay automatically after a restart** if you want it hands-free. See [Restart recovery](concepts.md#restart-recovery) for what the banner does. Automatic replay needs a target that reads the emulator's credential files.

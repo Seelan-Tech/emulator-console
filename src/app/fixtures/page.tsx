@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { EmptyState, PageHeader } from "@/components/common";
 import { FixtureCreate } from "@/components/fixture-create";
+import { ExportAllButton, FixtureImport } from "@/components/fixture-share";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { query } from "@/lib/db";
 
@@ -18,7 +19,13 @@ export default async function Fixtures() {
       <PageHeader
         title="Fixtures"
         description="The emulator keeps everything in memory. A fixture replays calls to rebuild its state after a restart."
-        actions={<FixtureCreate />}
+        actions={
+          <div className="flex gap-2">
+            {rows.length ? <ExportAllButton /> : null}
+            <FixtureImport />
+            <FixtureCreate />
+          </div>
+        }
       />
       {rows.length ? (
         <Table>
