@@ -1,5 +1,5 @@
 "use client";
-import { CheckCircle2, Play, Save, Trash2, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ListChecks, Play, RotateCw, Save, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -16,6 +16,8 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import type { FixtureRunView, StepResult } from "@/lib/api-types";
 import { cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
+import type { Problem } from "@/lib/fixture-check";
+import { resumePlan } from "@/lib/fixture-vars";
 
 export function FixtureEditor(props: {
   fixture: { id: string; name: string; description: string; steps: unknown[] };
@@ -31,6 +33,7 @@ export function FixtureEditor(props: {
   const [continueOnError, setContinue] = useState(false);
   const [result, setResult] = useState<FixtureRunView | null>(null);
   const [busy, setBusy] = useState(false);
+  const [problems, setProblems] = useState<Problem[] | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   async function save(): Promise<boolean> {
@@ -52,12 +55,16 @@ export function FixtureEditor(props: {
     }
   }
 
-  async function run() {
+  async function run(fromStep?: number) {
     if (!(await save())) return;
     setBusy(true);
     setResult(null);
     try {
-      const r = await api<FixtureRunView>(`/api/fixtures/${fixture.id}/run`, "POST", { targetId, continueOnError });
+      const r = await api<FixtureRunView>(`/api/fixtures/${fixture.id}/run`, "POST", {
+        targetId,
+        continueOnError,
+        fromStep,
+      });
       setResult(r);
       if (r.status === "succeeded") toast.success("Fixture replayed");
       else toast.error("Fixture run failed");
@@ -66,6 +73,34 @@ export function FixtureEditor(props: {
       toast.error((e as Error).message);
     }
     setBusy(false);
+  }
+
+  async function check() {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(steps);
+    } catch (e) {
+      return toast.error(`Steps are not valid JSON: ${(e as Error).message}`);
+    }
+    if (!Array.isArray(parsed)) return toast.error("Steps must be a JSON array");
+    try {
+      setProblems((await api<{ problems: Problem[] }>("/api/fixtures/check", "POST", { steps: parsed })).problems);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  // What resuming at a failed step would run: the steps from there, plus earlier ones that keep a value they use.
+  function resumeNote(from: number): string | undefined {
+    try {
+      const parsed = JSON.parse(steps) as { input?: unknown; capture?: Record<string, string> }[];
+      const again = resumePlan(parsed, from).filter((i) => i < from);
+      return again.length
+        ? `Also runs step ${again.map((i) => i + 1).join(", ")} again: it keeps a value a later step uses.`
+        : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   const results = (rs: StepResult[]) => (
@@ -136,6 +171,9 @@ export function FixtureEditor(props: {
             <Button variant="outline" onClick={save}>
               <Save /> Save
             </Button>
+            <Button variant="outline" onClick={check}>
+              <ListChecks /> Check
+            </Button>
             <CopyCliButton
               label="Copy as AWS CLI script"
               command={() => {
@@ -147,6 +185,31 @@ export function FixtureEditor(props: {
               <Trash2 className="text-destructive" /> Delete fixture
             </Button>
           </div>
+          {problems && (
+            <div className="mt-3 grid gap-1 text-sm" data-testid="check-result">
+              {problems.length ? (
+                problems.map((p, i) => (
+                  <p
+                    key={i}
+                    className={`flex items-start gap-1 ${p.level === "error" ? "text-destructive" : "text-warning"}`}
+                  >
+                    {p.level === "error" ? (
+                      <XCircle className="mt-0.5 size-4 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                    )}
+                    <span>
+                      <b>Step {p.step + 1}</b> {p.message}
+                    </span>
+                  </p>
+                ))
+              ) : (
+                <p className="flex items-center gap-1 text-success">
+                  <CheckCircle2 className="size-4" /> No problems found. Nothing was sent to the emulator.
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -173,7 +236,7 @@ export function FixtureEditor(props: {
                 <Checkbox checked={continueOnError} onCheckedChange={(v) => setContinue(v === true)} /> Continue after a
                 failed step
               </label>
-              <Button disabled={busy} onClick={run}>
+              <Button disabled={busy} onClick={() => run()}>
                 {busy ? <Spinner /> : <Play />} {busy ? "Running…" : "Save & run"}
               </Button>
             </div>
@@ -185,7 +248,7 @@ export function FixtureEditor(props: {
               <Badge variant={result.status === "succeeded" ? "success" : "destructive"} className="justify-self-start">
                 Run {result.status}
               </Badge>
-              {results(result.results)}
+              <div data-testid="fixture-results">{results(result.results)}</div>
             </div>
           )}
         </CardContent>
@@ -227,6 +290,18 @@ export function FixtureEditor(props: {
                     <TD>
                       {r.results.filter((x) => x.ok).length}/{r.results.length}
                       {failed ? <span className="text-destructive"> · {failed.error}</span> : null}
+                      {failed && targets.length ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-1"
+                          disabled={busy}
+                          title={resumeNote(failed.index)}
+                          onClick={() => run(failed.index)}
+                        >
+                          <RotateCw /> Resume from step {failed.index + 1}
+                        </Button>
+                      ) : null}
                     </TD>
                   </TR>
                 );
