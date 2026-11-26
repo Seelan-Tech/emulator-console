@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AssertionAdder } from "@/components/assertion-adder";
 import { CodeEditor } from "@/components/code-editor";
 import { ConfirmDialog, Spinner } from "@/components/common";
 import { CopyCliButton } from "@/components/copy-cli-button";
@@ -17,7 +18,21 @@ import type { FixtureRunView, StepResult } from "@/lib/api-types";
 import { cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
 import type { Problem } from "@/lib/fixture-check";
+import { assertionSummary } from "@/lib/fixture-summary";
 import { resumePlan } from "@/lib/fixture-vars";
+import type { Step } from "@/lib/schemas";
+
+// "3 of 4 assertions held": a run's checks at a glance, nothing when it has none.
+function AssertionCount({ results, inline = false }: { results: StepResult[]; inline?: boolean }) {
+  const { total, held } = assertionSummary(results);
+  if (!total) return null;
+  const text = `${held} of ${total} ${total === 1 ? "assertion" : "assertions"} held`;
+  return (
+    <span className={`text-xs ${held === total ? "text-success" : "text-destructive"} ${inline ? "ml-1" : ""}`}>
+      {inline ? `· ${text}` : text}
+    </span>
+  );
+}
 
 export function FixtureEditor(props: {
   fixture: { id: string; name: string; description: string; steps: unknown[] };
@@ -90,6 +105,18 @@ export function FixtureEditor(props: {
     }
   }
 
+  function addStep(step: Step) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(steps);
+    } catch (e) {
+      return toast.error(`Steps are not valid JSON: ${(e as Error).message}`);
+    }
+    if (!Array.isArray(parsed)) return toast.error("Steps must be a JSON array");
+    setSteps(JSON.stringify([...(parsed as unknown[]), step], null, 2));
+    toast.success("Assertion added at the end of the steps. Save to keep it.");
+  }
+
   // What resuming at a failed step would run: the steps from there, plus earlier ones that keep a value they use.
   function resumeNote(from: number): string | undefined {
     try {
@@ -125,6 +152,11 @@ export function FixtureEditor(props: {
                 <span className="inline-flex items-center gap-1 text-success">
                   <CheckCircle2 className="size-4" />
                   ok{r.attempts > 1 ? ` (${r.attempts} attempts)` : ""}
+                  {r.checks ? (
+                    <span className="text-muted-foreground">
+                      {r.checks} {r.checks === 1 ? "check holds" : "checks hold"}
+                    </span>
+                  ) : null}
                   {r.captured?.length ? (
                     <span className="text-muted-foreground">kept {r.captured.join(", ")}</span>
                   ) : null}
@@ -133,6 +165,9 @@ export function FixtureEditor(props: {
                 <span className="inline-flex items-center gap-1 text-destructive">
                   <XCircle className="size-4" />
                   {r.error}
+                  {r.checks ? (
+                    <span className="text-muted-foreground">({r.checks === 1 ? "1 check" : `${r.checks} checks`})</span>
+                  ) : null}
                 </span>
               )}
             </TD>
@@ -161,12 +196,13 @@ export function FixtureEditor(props: {
           <p className="text-xs text-muted-foreground">
             A JSON array of calls, e.g.{" "}
             <code>{`{"service":"s3","operation":"CreateBucket","input":{"Bucket":"x"}}`}</code>. Optional per step:{" "}
-            <code>delayAfterMs</code>, <code>retries</code>, <code>retryDelayMs</code>, <code>region</code>. Easier:
-            record steps from a target.
+            <code>delayAfterMs</code>, <code>retries</code>, <code>retryDelayMs</code>, <code>region</code>,{" "}
+            <code>capture</code>, <code>expect</code> (an assertion). Easier: record steps from a target.
           </p>
         </CardHeader>
         <CardContent>
           <CodeEditor value={steps} onChange={setSteps} height="320px" />
+          <AssertionAdder onAdd={addStep} />
           <div className="mt-3 flex gap-2">
             <Button variant="outline" onClick={save}>
               <Save /> Save
@@ -248,6 +284,7 @@ export function FixtureEditor(props: {
               <Badge variant={result.status === "succeeded" ? "success" : "destructive"} className="justify-self-start">
                 Run {result.status}
               </Badge>
+              <AssertionCount results={result.results} />
               <div data-testid="fixture-results">{results(result.results)}</div>
             </div>
           )}
@@ -289,6 +326,7 @@ export function FixtureEditor(props: {
                     </TD>
                     <TD>
                       {r.results.filter((x) => x.ok).length}/{r.results.length}
+                      <AssertionCount results={r.results} inline />
                       {failed ? <span className="text-destructive"> · {failed.error}</span> : null}
                       {failed && targets.length ? (
                         <Button

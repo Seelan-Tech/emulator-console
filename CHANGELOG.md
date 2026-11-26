@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Add an assertion…** in the fixture editor: ready-made checks (a queue has N messages, a table has N items, an S3 object exists, a function is `Active`, a topic has N subscriptions, a secret exists) that are appended to the steps with suitable retries. The run results and History show how many checks hold (**2 of 3 assertions held**).
+- **Copy as AWS CLI script** exports assertions as shell tests that retry like a replay and stop the script with `check failed: …` when one does not hold.
 - **Assertions** in fixtures: a step with `expect` reads something and checks the response (`equals`, `notEquals`, `contains`, `exists`, `length`, `gt`/`gte`/`lt`/`lte`, `matches`), so a replay can confirm the state it built. A check that does not hold fails the step, and `retries` poll for state that arrives later (a function becoming `Active`). `{{variables}}` work in the expected values, **Check** validates the shape, and a failure never quotes the response of Secrets Manager, SSM or KMS.
 
 ## [0.4.0] - 2026-11-26

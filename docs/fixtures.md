@@ -130,6 +130,18 @@ Each check has a `path` into the response (as in [`capture`](#variables)) and ex
 - The failure says what was expected and what the response held (`Attributes.ApproximateNumberOfMessages: expected "0", got "2"`), cut to 120 characters. For `secretsmanager`, `ssm` and `kms` it never quotes the response. The History shows it like any failed step.
 - **Continue after a failed step** goes on after a failed assertion too, and the run still ends as failed.
 
+#### Adding an assertion
+
+Since 0.5.0. Under the steps, **Add an assertion…** offers ready-made ones: a queue has N messages, a table has N items, an S3 object exists, a Lambda function is `Active`, an SNS topic has N subscriptions, a secret exists. Choose one, fill in the names (a `{{variable}}` works for an id an earlier step kept) and **Add to steps** appends it, with `retries` that suit it, to the end of the JSON. **Save** keeps it. A template is only a starting point: edit the JSON to change the check.
+
+#### In the history
+
+A step with checks shows how many hold (**2 checks hold**) or how many failed, and a run says **2 of 3 assertions held**. A run that stopped at a failed step counts only the assertions that ran.
+
+#### As an AWS CLI script
+
+**Copy as AWS CLI script** turns an assertion into shell: the read is repeated as often as `retries` says, and the script stops with `check failed: sqs.GetQueueAttributes` when a check does not hold, so a script can verify what a fixture built. `equals` and `notEquals` on text, numbers and booleans, `exists`, `length`, `gt`, `gte`, `lt`, `lte` and `contains` on plain text are exported (`gt` and the others need `awk`). `matches`, and `equals` or `contains` on a list or object, are not: the script says so in a comment, because shell patterns differ from JavaScript ones.
+
 ### Checking a fixture
 
 Since 0.4.0. **Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
