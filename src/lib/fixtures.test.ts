@@ -133,3 +133,76 @@ test("a variable needed after a failed step stops a continue-on-error run only f
     [false, false, true],
   );
 });
+
+const check = (path: string, equals: unknown, extra: Partial<Step> = {}) =>
+  mk("GetQueueAttributes", { expect: [{ path, equals }], ...extra });
+
+test("an assertion that holds passes, and reports how many checks it has", async () => {
+  const out = await runSteps([check("A", 1)], async () => ({ ok: true, ms: 1, output: { A: 1 } }), { sleep: noSleep });
+  assert.equal(out.status, "succeeded");
+  assert.equal(out.results[0]!.checks, 1);
+});
+
+test("an assertion that does not hold fails the step with what it saw, and stops the run", async () => {
+  const out = await runSteps([check("A", 1), mk("Next")], async () => ({ ok: true, ms: 1, output: { A: 2 } }), {
+    sleep: noSleep,
+  });
+  assert.equal(out.status, "failed");
+  assert.equal(out.results.length, 1);
+  assert.equal(out.results[0]!.error, "A: expected 1, got 2");
+});
+
+test("an assertion is retried until it holds, waiting between attempts", async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const out = await runSteps(
+    [check("State", "Active", { retries: 5, retryDelayMs: 200 })],
+    async () => ({ ok: true, ms: 1, output: { State: ++calls < 3 ? "Pending" : "Active" } }),
+    { sleep: async (ms) => void waits.push(ms) },
+  );
+  assert.equal(out.status, "succeeded");
+  assert.equal(out.results[0]!.attempts, 3);
+  assert.deepEqual(waits, [200, 200]);
+});
+
+test("an assertion that never holds fails after its retries", async () => {
+  let calls = 0;
+  const out = await runSteps(
+    [check("A", 1, { retries: 2 })],
+    async () => ({ ok: true, ms: 1, output: { A: 10 + ++calls } }),
+    { sleep: noSleep },
+  );
+  assert.equal(out.status, "failed");
+  assert.equal(out.results[0]!.attempts, 3);
+  assert.equal(out.results[0]!.error, "A: expected 1, got 13");
+});
+
+test("an assertion can compare with a captured variable, and a missing one fails without a call", async () => {
+  const seen: Step[] = [];
+  const steps = [
+    mk("CreateQueue", { capture: { name: "Name" } }),
+    mk("GetQueueAttributes", { expect: [{ path: "Name", equals: "{{name}}" }] }),
+  ];
+  const out = await runSteps(steps, async (s) => (seen.push(s), { ok: true, ms: 1, output: { Name: "q1" } }), {
+    sleep: noSleep,
+  });
+  assert.equal(out.status, "succeeded");
+
+  let calls = 0;
+  const missing = await runSteps(
+    [mk("GetQueueAttributes", { expect: [{ path: "Name", equals: "{{nope}}" }] })],
+    async () => (calls++, { ok: true, ms: 1, output: {} }),
+    { sleep: noSleep },
+  );
+  assert.equal(calls, 0);
+  assert.match(missing.results[0]!.error!, /"nope" is not set/);
+});
+
+test("continueOnError goes on after a failed assertion", async () => {
+  const out = await runSteps([check("A", 1), mk("Next")], async () => ({ ok: true, ms: 1, output: { A: 2 } }), {
+    continueOnError: true,
+    sleep: noSleep,
+  });
+  assert.equal(out.results.length, 2);
+  assert.equal(out.status, "failed");
+});

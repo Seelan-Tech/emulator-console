@@ -65,3 +65,12 @@ test("resumePlan runs the steps from the failed one, and earlier steps that keep
   ];
   assert.deepEqual(resumePlan(twice, 2), [1, 2]);
 });
+
+test("resumePlan also reruns a capture step that an assertion's expected value uses", () => {
+  const steps: Parameters<typeof resumePlan>[0] = [
+    { input: {}, capture: { name: "Name" } },
+    { input: {} },
+    { input: {}, expect: [{ path: "Name", equals: "{{name}}" }] },
+  ];
+  assert.deepEqual(resumePlan(steps, 2), [0, 2]);
+});

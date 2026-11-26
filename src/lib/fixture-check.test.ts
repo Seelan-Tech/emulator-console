@@ -96,3 +96,28 @@ test("operations that are not modelled as a form are left alone", async () => {
   });
   assert.deepEqual(problems, []);
 });
+
+test("an assertion is checked: its shape, a variable it uses and a read-only operation", async () => {
+  const problems = await check([
+    { service: "sqs", operation: "CreateQueue", input: { QueueName: "q" }, capture: { url: "QueueUrl" } },
+    {
+      service: "sqs",
+      operation: "GetQueueAttributes",
+      input: { QueueUrl: "{{url}}" },
+      expect: [{ path: "Attributes.QueueArn", exists: true }],
+    },
+    {
+      service: "sqs",
+      operation: "GetQueueUrl",
+      input: { QueueName: "q" },
+      expect: [{ path: "QueueUrl", equals: "{{later}}" }],
+    },
+    { service: "sqs", operation: "GetQueueUrl", input: { QueueName: "q" }, expect: [{ path: "QueueUrl" }] },
+    { service: "sqs", operation: "PurgeQueue", input: { QueueUrl: "u" }, expect: [{ path: "A", exists: false }] },
+  ]);
+  assert.deepEqual(messages(problems), [
+    "4 error: expect.0: give exactly one of equals, notEquals, contains, exists, length, gt, gte, lt, lte, matches (found 0)",
+    "3 error: uses {{later}}, which no step captures",
+    "5 warning: PurgeQueue changes state, and a failed check runs it again: check with a read instead",
+  ]);
+});

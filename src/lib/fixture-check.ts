@@ -1,4 +1,5 @@
 import { referencedVars, VAR_REF } from "./fixture-vars";
+import { isMutating } from "./mutating";
 import type { Field } from "./schema";
 import { type Step, step as stepSchema } from "./schemas";
 
@@ -99,7 +100,7 @@ export async function checkSteps(raw: unknown[], look: Lookups): Promise<Problem
       }
     }
 
-    for (const name of referencedVars(s.input)) {
+    for (const name of referencedVars([s.input, s.expect])) {
       const from = captured.get(name);
       if (from !== undefined) continue;
       const later = steps.findIndex((t, j) => j > i && t?.capture && name in t.capture);
@@ -113,6 +114,8 @@ export async function checkSteps(raw: unknown[], look: Lookups): Promise<Problem
     }
     for (const name of Object.keys(s.capture ?? {})) if (!captured.has(name)) captured.set(name, i);
 
+    if (s.expect && isMutating(s.operation))
+      add(i, "warning", `${s.operation} changes state, and a failed check runs it again: check with a read instead`);
     if (SENDS.test(s.operation)) add(i, "warning", `${s.operation} sends again on every replay`);
     for (let j = 0; j < i; j++) {
       const earlier = steps[j];

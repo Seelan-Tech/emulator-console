@@ -69,6 +69,7 @@ Each step is an object:
 | `retries` | Extra attempts if the step fails, 0 to 20. |
 | `retryDelayMs` | Wait between attempts, 100 to 30 000. |
 | `capture` | Optional. Values to keep from the response for later steps: see [Variables](#variables). |
+| `expect` | Optional. Checks on the response, which make the step an [assertion](#assertions). |
 
 A fixture holds at most 500 steps. The editor reports invalid JSON before saving.
 
@@ -98,12 +99,43 @@ Since 0.4.0. A step can keep values from its response, and later steps can use t
 - Variables last for one run. The **History** shows the names a step kept (**kept keyId**), never the values, like step outputs.
 - **Copy as AWS CLI script** turns a capture into a shell variable (`read -r keyId <<<"$(aws … --query '[KeyMetadata.KeyId]' --output text)"`) and the references into `"$keyId"`. A reference inside a Lambda `Invoke` payload is not substituted in the script.
 
+### Assertions
+
+Since 0.5.0. A step with `expect` is an assertion: it makes a read call, then checks the response. A fixture can say what the state should be, not only how to build it, so a replay doubles as a smoke test.
+
+```json
+{
+  "service": "sqs",
+  "operation": "GetQueueAttributes",
+  "input": { "QueueUrl": "{{queueUrl}}", "AttributeNames": ["ApproximateNumberOfMessages"] },
+  "retries": 5,
+  "retryDelayMs": 1000,
+  "expect": [{ "path": "Attributes.ApproximateNumberOfMessages", "equals": "0" }]
+}
+```
+
+Each check has a `path` into the response (as in [`capture`](#variables)) and exactly one matcher:
+
+| Matcher | Holds when the value at `path` |
+| --- | --- |
+| `equals` / `notEquals` | is (is not) deeply equal to the given value. Strict: the text `"3"` is not the number `3`. |
+| `contains` | is a text that includes the given text, or a list with the given item |
+| `exists` | has a value (`true`), or has none (`false`) |
+| `length` | is a list or text of that length, or an object with that many keys |
+| `gt`, `gte`, `lt`, `lte` | compares with a number. A number that came back as text, like an SQS attribute, counts. |
+| `matches` | a text or number that matches the regular expression |
+
+- A step has up to 20 checks, and all of them have to hold. `{{name}}` works in the expected values, so a check can compare with an id an earlier step [kept](#variables).
+- A check that does not hold fails the step. `retries` and `retryDelayMs` apply, so "the function becomes `Active` within a few seconds" is a step with `retries`, not a fixed pause. Use a read operation: a check that is retried runs the call again, and **Check** warns about one that changes state.
+- The failure says what was expected and what the response held (`Attributes.ApproximateNumberOfMessages: expected "0", got "2"`), cut to 120 characters. For `secretsmanager`, `ssm` and `kms` it never quotes the response. The History shows it like any failed step.
+- **Continue after a failed step** goes on after a failed assertion too, and the run still ends as failed.
+
 ### Checking a fixture
 
 Since 0.4.0. **Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
 
-- **Errors**: a step that is not valid, an operation the service does not have, a required field that is missing, a field of the wrong kind (a number where a string is expected), and a `{{name}}` that no earlier step captures (or that a later step captures).
-- **Warnings**: a field the operation does not have (the SDK ignores it, which is usually a typo), a step that sends again on every replay (`SendMessage`, `Publish`, `PutEvents`, `PutRecord`, `StartExecution`), and a `Delete…` that undoes an earlier `Create…` of the same thing. The last one is a best-effort match on the fields the delete names.
+- **Errors**: a step that is not valid, an operation the service does not have, a required field that is missing, a field of the wrong kind (a number where a string is expected), and a `{{name}}` that no earlier step captures (or that a later step captures), also inside an [assertion](#assertions), whose shape is checked as well (a check needs a path and exactly one matcher, and a pattern has to be valid).
+- **Warnings**: a field the operation does not have (the SDK ignores it, which is usually a typo), a step that sends again on every replay (`SendMessage`, `Publish`, `PutEvents`, `PutRecord`, `StartExecution`), a `Delete…` that undoes an earlier `Create…` of the same thing, and an assertion on an operation that changes state. The `Delete…` match is a best-effort match on the fields the delete names.
 
 A value that is a `{{name}}` is not judged, because it is only known during the replay. The check cannot tell whether a resource already exists on a target.
 

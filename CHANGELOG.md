@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Assertions** in fixtures: a step with `expect` reads something and checks the response (`equals`, `notEquals`, `contains`, `exists`, `length`, `gt`/`gte`/`lt`/`lte`, `matches`), so a replay can confirm the state it built. A check that does not hold fails the step, and `retries` poll for state that arrives later (a function becoming `Active`). `{{variables}}` work in the expected values, **Check** validates the shape, and a failure never quotes the response of Secrets Manager, SSM or KMS.
+
 ## [0.4.0] - 2026-11-26
 
 ### Added

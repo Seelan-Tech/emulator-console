@@ -1,5 +1,6 @@
+import { evaluateExpect } from "./fixture-expect";
 import { getPath, substitute, type Vars } from "./fixture-vars";
-import type { Step } from "./schemas";
+import type { Expectation, Step } from "./schemas";
 
 export type StepResult = {
   index: number;
@@ -10,6 +11,7 @@ export type StepResult = {
   attempts: number;
   error?: string;
   captured?: string[]; // names only: the values are not kept
+  checks?: number; // how many `expect` checks the step has; a failed one is the step's `error`
 };
 export type RunOutcome = { status: "succeeded" | "failed"; results: StepResult[] };
 
@@ -33,7 +35,8 @@ export async function runSteps(
     let attempts = 0;
     const captured: string[] = [];
     let last: Awaited<ReturnType<Exec>>;
-    const { value: input, missing } = substitute(s.input, vars);
+    const { value: filled, missing } = substitute({ input: s.input, expect: s.expect ?? [] }, vars);
+    const { input, expect } = filled as { input: Step["input"]; expect: Expectation[] };
     if (missing.length) {
       // Nothing is sent: the step needs a value no earlier step has captured.
       last = {
@@ -42,11 +45,16 @@ export async function runSteps(
         error: `Variable ${missing.map((m) => `"${m}"`).join(", ")} is not set by an earlier step`,
       };
     } else {
-      const resolved = { ...s, input: input as Step["input"] };
+      const resolved = { ...s, input };
       do {
         if (attempts > 0) await sleep(s.retryDelayMs);
         attempts++;
         last = await exec(resolved);
+        // A read can be repeated, so a check that does not hold yet is retried like a failed call.
+        if (last.ok && expect.length) {
+          const failures = evaluateExpect(expect, last.output, s.service);
+          if (failures.length) last = { ok: false, ms: last.ms, error: failures.join("; ") };
+        }
       } while (!last.ok && attempts <= s.retries);
       if (last.ok) {
         // The call went through, so a missing value is not retried: the state has already changed.
@@ -70,6 +78,7 @@ export async function runSteps(
       attempts,
       ...(last.ok ? {} : { error: last.error }),
       ...(captured.length ? { captured } : {}),
+      ...(s.expect?.length ? { checks: s.expect.length } : {}),
     });
     if (!last.ok) {
       failed = true;
