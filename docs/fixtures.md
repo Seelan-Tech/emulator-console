@@ -19,7 +19,7 @@ What is recorded: successful state-changing calls from the screens and from the 
 
 ### Ids between steps
 
-When a call returns an id and a later call uses it, the recorder turns it into a [variable](#variables): the first step gets a `capture` and the later one `{{name}}`, so a replay uses the id the new call returns, not the one that was typed in. The **Steps** list marks the steps with **keeps queueUrl** and **uses queueUrl**; the **×** on **uses …** puts the value itself back. Removing a step that returned an id does the same for the steps that used it. The **Link ids** switch next to **Record** turns this off (it is on by default).
+Since 0.4.0. When a call returns an id and a later call uses it, the recorder turns it into a [variable](#variables): the first step gets a `capture` and the later one `{{name}}`, so a replay uses the id the new call returns, not the one that was typed in. The **Steps** list marks the steps with **keeps queueUrl** and **uses queueUrl**; the **×** on **uses …** puts the value itself back. Removing a step that returned an id does the same for the steps that used it. The **Link ids** switch next to **Record** turns this off (it is on by default).
 
 Only values shaped like an id the emulator makes up are linked, so that things that merely look alike are not tied together: ARNs, `http(s)://` URLs (queue URLs), UUIDs (KMS key ids), prefixed hex ids (`i-…`, `vpc-…`, `sg-…`) and long upper-case ids (IAM ids). A name you typed yourself, such as a bucket or queue name, is never linked, and neither is an id that two different earlier steps returned (it is not clear which one was meant). The id is replaced wherever it appears in a later step, also inside longer text such as a queue policy.
 
@@ -74,7 +74,7 @@ A fixture holds at most 500 steps. The editor reports invalid JSON before saving
 
 ### Variables
 
-A step can keep values from its response, and later steps can use them. This is for ids the emulator makes up (a KMS key id, an EC2 or IAM id, an execution ARN), and for replaying on a target whose port or region differs, where a queue URL is not the same.
+Since 0.4.0. A step can keep values from its response, and later steps can use them. This is for ids the emulator makes up (a KMS key id, an EC2 or IAM id, an execution ARN), and for replaying on a target whose port or region differs, where a queue URL is not the same.
 
 ```json
 [
@@ -100,7 +100,7 @@ A step can keep values from its response, and later steps can use them. This is 
 
 ### Checking a fixture
 
-**Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
+Since 0.4.0. **Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
 
 - **Errors**: a step that is not valid, an operation the service does not have, a required field that is missing, a field of the wrong kind (a number where a string is expected), and a `{{name}}` that no earlier step captures (or that a later step captures).
 - **Warnings**: a field the operation does not have (the SDK ignores it, which is usually a typo), a step that sends again on every replay (`SendMessage`, `Publish`, `PutEvents`, `PutRecord`, `StartExecution`), and a `Delete…` that undoes an earlier `Create…` of the same thing. The last one is a best-effort match on the fields the delete names.
@@ -114,7 +114,7 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - A step that fails stops the run, unless **Continue after a failed step** is ticked.
 - The **History** shows every run: which target, when, the result, and per step the outcome, time and attempts. A run started by a restart is marked **after restart**.
 - Step outputs are not stored.
-- A failed run has **Resume from step N** in the History. It runs the fixture again from the step that failed, on the target chosen under **Replay on a target**, and saves the editor first. The steps before it are not run again, except steps that [keep a value](#variables) a later step uses, since that value is gone: the button's tooltip names them. The run's results number the steps as in the fixture. If you edited the steps since the failed run, the step numbers may no longer match.
+- Since 0.4.0, a failed run has **Resume from step N** in the History. It runs the fixture again from the step that failed, on the target chosen under **Replay on a target**, and saves the editor first. The steps before it are not run again, except steps that [keep a value](#variables) a later step uses, since that value is gone: the button's tooltip names them. The run's results number the steps as in the fixture. If you edited the steps since the failed run, the step numbers may no longer match.
 
 Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder [adds them](#ids-between-steps) for ids that one call returns and a later one uses.
 
