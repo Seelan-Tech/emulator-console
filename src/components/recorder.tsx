@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import type { FixtureDetail, IdName } from "@/lib/api-types";
 import { cliCommand, cliScript } from "@/lib/cli-command";
 import { api } from "@/lib/client";
+import { addLinked, literalStep, removeStep, toFixtureSteps, unlink } from "@/lib/recorder-links";
 import { type RecordedStep, withTiming } from "@/lib/recorder-timing";
 import { storage } from "@/lib/storage";
 
@@ -28,8 +29,12 @@ type Ctx = {
   steps: RecordedStep[];
   recording: boolean;
   setRecording: (v: boolean) => void;
-  add: (s: RecordedStep) => void;
+  linkIds: boolean;
+  setLinkIds: (v: boolean) => void;
+  // `output` is the call's response: ids in it that a later step uses become variables.
+  add: (s: RecordedStep, output?: unknown) => void;
   remove: (i: number) => void;
+  unlink: (i: number, name: string) => void;
   clear: () => void;
 };
 
@@ -37,45 +42,53 @@ const noop: Ctx = {
   steps: [],
   recording: false,
   setRecording: () => {},
+  linkIds: true,
+  setLinkIds: () => {},
   add: () => {},
   remove: () => {},
+  unlink: () => {},
   clear: () => {},
 };
 const RecorderCtx = createContext<Ctx>(noop);
 export const useRecorder = () => useContext(RecorderCtx);
 
 // Steps survive a reload (per target) so recording a long session doesn't depend on the tab staying open.
-type PersistedRecorder = { steps: RecordedStep[]; recording: boolean };
+type PersistedRecorder = { steps: RecordedStep[]; recording: boolean; linkIds: boolean };
 
 export function RecorderProvider({ targetId, children }: { targetId: string; children: React.ReactNode }) {
   const key = `recorder:v1:${targetId}`;
   const [steps, setSteps] = useState<RecordedStep[]>([]);
   const [recording, setRecording] = useState(true);
+  const [linkIds, setLinkIds] = useState(true);
   const loaded = useRef(false);
   const recordingRef = useRef(recording);
   recordingRef.current = recording;
+  const linkRef = useRef(linkIds);
+  linkRef.current = linkIds;
 
   useEffect(() => {
     const saved = storage.getJson<Partial<PersistedRecorder> | null>(key, null);
     if (saved?.steps) setSteps(saved.steps);
     if (typeof saved?.recording === "boolean") setRecording(saved.recording);
+    if (typeof saved?.linkIds === "boolean") setLinkIds(saved.linkIds);
     loaded.current = true;
   }, [key]);
 
   useEffect(() => {
     if (!loaded.current) return;
-    storage.setJson(key, { steps, recording });
-  }, [key, steps, recording]);
+    storage.setJson(key, { steps, recording, linkIds });
+  }, [key, steps, recording, linkIds]);
 
-  const add = useCallback((s: RecordedStep) => {
-    if (recordingRef.current) setSteps((cur) => [...cur, withTiming(s)]);
+  const add = useCallback((s: RecordedStep, output?: unknown) => {
+    if (recordingRef.current) setSteps((cur) => addLinked(cur, withTiming(s), output, linkRef.current));
   }, []);
-  const remove = useCallback((i: number) => setSteps((cur) => cur.filter((_, j) => j !== i)), []);
+  const remove = useCallback((i: number) => setSteps((cur) => removeStep(cur, i)), []);
+  const unlinkStep = useCallback((i: number, name: string) => setSteps((cur) => unlink(cur, i, name)), []);
   const clear = useCallback(() => setSteps([]), []);
 
   const value = useMemo(
-    () => ({ steps, recording, setRecording, add, remove, clear }),
-    [steps, recording, add, remove, clear],
+    () => ({ steps, recording, setRecording, linkIds, setLinkIds, add, remove, unlink: unlinkStep, clear }),
+    [steps, recording, linkIds, add, remove, unlinkStep, clear],
   );
   return <RecorderCtx.Provider value={value}>{children}</RecorderCtx.Provider>;
 }
@@ -84,7 +97,7 @@ type FixtureRow = { id: string; name: string };
 
 // Persistent bar at the bottom of every target page: what you click is captured as replayable steps.
 export function RecorderDrawer() {
-  const { steps, recording, setRecording, remove, clear } = useRecorder();
+  const { steps, recording, setRecording, linkIds, setLinkIds, remove, unlink: unlinkStep, clear } = useRecorder();
   const { region } = useTarget();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -97,6 +110,10 @@ export function RecorderDrawer() {
         <label className="flex items-center gap-2 text-sm">
           <Switch checked={recording} onCheckedChange={setRecording} aria-label="Record state-changing calls" />
           Record
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Switch checked={linkIds} onCheckedChange={setLinkIds} aria-label="Link ids between steps" />
+          Link ids
         </label>
         <Badge variant={steps.length ? "default" : "outline"} data-testid="recorder-count">
           {steps.length} step{steps.length === 1 ? "" : "s"}
@@ -132,12 +149,30 @@ export function RecorderDrawer() {
               <span>
                 {s.service}.{s.operation}
               </span>
+              {Object.keys(s.capture ?? {}).map((name) => (
+                <Badge key={`k${name}`} variant="outline" title={`Later steps use this response as {{${name}}}`}>
+                  keeps {name}
+                </Badge>
+              ))}
+              {Object.keys(s.links ?? {}).map((name) => (
+                <Badge key={`u${name}`} variant="default" className="gap-1">
+                  uses {name}
+                  <button
+                    className="hover:text-destructive"
+                    onClick={() => unlinkStep(i, name)}
+                    aria-label={`Unlink ${name} in step ${i + 1}`}
+                    title="Use the value itself, not a variable"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Badge>
+              ))}
               <span className="ml-auto">
                 <CopyCliButton
                   iconOnly
                   variant="ghost"
                   label={`Copy step ${i + 1} as AWS CLI`}
-                  command={() => cliCommand({ ...s, region: s.region ?? region })}
+                  command={() => cliCommand({ ...literalStep(s), region: s.region ?? region })}
                 />
               </span>
               <button
@@ -186,11 +221,11 @@ function SaveFixtureDialog({
     setBusy(true);
     try {
       if (dest === "new") {
-        const f = await api<IdName>("/api/fixtures", "POST", { name: name.trim(), steps });
+        const f = await api<IdName>("/api/fixtures", "POST", { name: name.trim(), steps: toFixtureSteps(steps) });
         toast.success(`Saved fixture "${f.name}" (${steps.length} steps)`);
       } else {
         const cur = await api<FixtureDetail>(`/api/fixtures/${dest}`);
-        await api(`/api/fixtures/${dest}`, "PUT", { steps: [...cur.steps, ...steps] });
+        await api(`/api/fixtures/${dest}`, "PUT", { steps: [...cur.steps, ...toFixtureSteps(steps)] });
         toast.success(`Appended ${steps.length} step(s) to "${cur.name}"`);
       }
       onSaved();

@@ -17,6 +17,12 @@ A fixture is a recipe for rebuilding state: an ordered list of API calls. Fixtur
 
 What is recorded: successful state-changing calls from the screens and from the operation runner. What is not: reads, Lambda `Invoke`, receiving or deleting SQS messages, S3 uploads, and anything done with the AWS CLI.
 
+### Ids between steps
+
+When a call returns an id and a later call uses it, the recorder turns it into a [variable](#variables): the first step gets a `capture` and the later one `{{name}}`, so a replay uses the id the new call returns, not the one that was typed in. The **Steps** list marks the steps with **keeps queueUrl** and **uses queueUrl**; the **×** on **uses …** puts the value itself back. Removing a step that returned an id does the same for the steps that used it. The **Link ids** switch next to **Record** turns this off (it is on by default).
+
+Only values shaped like an id the emulator makes up are linked, so that things that merely look alike are not tied together: ARNs, `http(s)://` URLs (queue URLs), UUIDs (KMS key ids), prefixed hex ids (`i-…`, `vpc-…`, `sg-…`) and long upper-case ids (IAM ids). A name you typed yourself, such as a bucket or queue name, is never linked, and neither is an id that two different earlier steps returned (it is not clear which one was meant). The id is replaced wherever it appears in a later step, also inside longer text such as a queue policy.
+
 ### What a fixture cannot capture
 
 Recording happens in the console, in your browser, so only what you do in the console is seen. Calls made with the AWS CLI, an SDK or a script go straight to the emulator, which has no API that lists or logs what it holds, so there is nothing for the console to read back. Setup done that way is **not in the fixture**, and a replay will not rebuild it.
@@ -62,8 +68,44 @@ Each step is an object:
 | `delayAfterMs` | Pause after the step, 0 to 60 000. |
 | `retries` | Extra attempts if the step fails, 0 to 20. |
 | `retryDelayMs` | Wait between attempts, 100 to 30 000. |
+| `capture` | Optional. Values to keep from the response for later steps: see [Variables](#variables). |
 
 A fixture holds at most 500 steps. The editor reports invalid JSON before saving.
+
+### Variables
+
+A step can keep values from its response, and later steps can use them. This is for ids the emulator makes up (a KMS key id, an EC2 or IAM id, an execution ARN), and for replaying on a target whose port or region differs, where a queue URL is not the same.
+
+```json
+[
+  {
+    "service": "kms",
+    "operation": "CreateKey",
+    "input": {},
+    "capture": { "keyId": "KeyMetadata.KeyId" }
+  },
+  {
+    "service": "kms",
+    "operation": "CreateAlias",
+    "input": { "AliasName": "alias/app", "TargetKeyId": "{{keyId}}" }
+  }
+]
+```
+
+- `capture` maps a variable name (letters, digits and `_`, not starting with a digit) to a path in the response: `Attributes.QueueArn`, `Subnets[0].SubnetId`.
+- `{{name}}` can be used in any string of a later step's `input`. A string that is exactly `{{name}}` becomes the value itself, so numbers and lists keep their type; inside longer text the value is written as text.
+- A step that uses a name no earlier step has set fails without calling the emulator. A path that matches nothing fails the step, and it is not retried, because the call already went through.
+- Variables last for one run. The **History** shows the names a step kept (**kept keyId**), never the values, like step outputs.
+- **Copy as AWS CLI script** turns a capture into a shell variable (`read -r keyId <<<"$(aws … --query '[KeyMetadata.KeyId]' --output text)"`) and the references into `"$keyId"`. A reference inside a Lambda `Invoke` payload is not substituted in the script.
+
+### Checking a fixture
+
+**Check**, next to **Save**, reads the steps as they are typed in the editor, saved or not, and lists what is wrong. It never calls the emulator or a target.
+
+- **Errors**: a step that is not valid, an operation the service does not have, a required field that is missing, a field of the wrong kind (a number where a string is expected), and a `{{name}}` that no earlier step captures (or that a later step captures).
+- **Warnings**: a field the operation does not have (the SDK ignores it, which is usually a typo), a step that sends again on every replay (`SendMessage`, `Publish`, `PutEvents`, `PutRecord`, `StartExecution`), and a `Delete…` that undoes an earlier `Create…` of the same thing. The last one is a best-effort match on the fields the delete names.
+
+A value that is a `{{name}}` is not judged, because it is only known during the replay. The check cannot tell whether a resource already exists on a target.
 
 ## Replaying
 
@@ -72,8 +114,9 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - A step that fails stops the run, unless **Continue after a failed step** is ticked.
 - The **History** shows every run: which target, when, the result, and per step the outcome, time and attempts. A run started by a restart is marked **after restart**.
 - Step outputs are not stored.
+- A failed run has **Resume from step N** in the History. It runs the fixture again from the step that failed, on the target chosen under **Replay on a target**, and saves the editor first. The steps before it are not run again, except steps that [keep a value](#variables) a later step uses, since that value is gone: the button's tooltip names them. The run's results number the steps as in the fixture. If you edited the steps since the failed run, the step numbers may no longer match.
 
-Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step (a queue URL, say) needs editing by hand to use a name you control.
+Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder [adds them](#ids-between-steps) for ids that one call returns and a later one uses.
 
 Every recorded step runs, in order, including ones that undo each other: a bucket you created and later deleted is created and deleted again. A recorded `SendMessage` or `Publish` is sent again. Right after a restart the emulator may still refuse a step, for example when a queue name was deleted less than 60 seconds ago; use a step's retry settings or run the fixture again.
 

@@ -51,6 +51,52 @@ test("an unhandled error is flagged with its message, and the traceback stays in
   assert.equal(inv!.lines.length, 3);
 });
 
+test("a cold start's INIT_START line, written before the first START, is not a run of its own", () => {
+  // The order emulator 1.0.589 and later write (two runs in one stream, the INIT_START line sharing the first timestamp).
+  const t = 1795669377954;
+  const events = [
+    ev(t, "INIT_START Runtime Version: python:3.12.v12\tRuntime Version ARN: arn:aws:lambda:us-east-1::runtime:abc"),
+    ev(t, "START RequestId: first Version: $LATEST"),
+    ev(t, "MARKER"),
+    ev(
+      t,
+      '[ERROR] ValueError: planned failure\nTraceback (most recent call last):\n    raise ValueError("planned failure")',
+    ),
+    ev(t + 97, "END RequestId: first"),
+    ev(
+      t + 97,
+      "REPORT RequestId: first\tDuration: 97.1 ms\tBilled Duration: 98 ms\tMemory Size: 128 MB\tMax Memory Used: 1 MB",
+    ),
+    ev(t + 1592, "START RequestId: second Version: $LATEST"),
+    ev(t + 1592, "MARKER"),
+    ev(t + 1600, "END RequestId: second"),
+    ev(
+      t + 1600,
+      "REPORT RequestId: second\tDuration: 8 ms\tBilled Duration: 9 ms\tMemory Size: 128 MB\tMax Memory Used: 1 MB",
+    ),
+  ];
+  const runs = groupInvocations(events);
+  assert.deepEqual(
+    runs.map((r) => [r.requestId, r.status]),
+    [
+      ["second", "ok"],
+      ["first", "error"],
+    ],
+  );
+  assert.ok(runs.every((r) => !r.lines.some((l) => l.startsWith("INIT_START"))));
+  // INIT_REPORT and RESTORE_* lines are platform lines too
+  const more = groupInvocations([
+    ev(1, "RESTORE_START Runtime Version: x"),
+    ev(2, "INIT_REPORT Init Duration: 215.4 ms\tPhase: init\tStatus: success"),
+    ev(3, "START RequestId: only Version: $LATEST"),
+    ev(4, "REPORT RequestId: only\tDuration: 1 ms"),
+  ]);
+  assert.deepEqual(
+    more.map((r) => r.requestId),
+    ["only"],
+  );
+});
+
 test("a timeout is an error too", () => {
   const [inv] = groupInvocations([
     ev(1, "START RequestId: ccc Version: $LATEST"),
