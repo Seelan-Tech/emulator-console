@@ -1,6 +1,8 @@
 // Turns a call the console made (service, operation, input) into the AWS CLI command that makes the same call, using
 // --cli-input-json so the input is the same JSON the console already holds. Needs the exports from "Use with the AWS CLI".
 
+import { VAR_REF } from "./fixture-vars";
+
 // The AWS CLI names a few services differently from the SDK clients.
 const CLI_SERVICE: Record<string, string> = { s3: "s3api", eventbridge: "events", sfn: "stepfunctions" };
 
@@ -31,6 +33,8 @@ function forCli(value: unknown): unknown {
 }
 
 const shellQuote = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+// A fixture variable inside a quoted argument: close the quote, use the shell variable, reopen it.
+const shellVars = (quoted: string) => quoted.replace(VAR_REF, (_, name: string) => `'"$${name}"'`);
 
 export type CliCall = { service: string; operation: string; input?: unknown; region?: string };
 
@@ -42,19 +46,25 @@ export function cliCommand({ service, operation, input, region }: CliCall): stri
   // The SDK takes the payload as a plain string; the CLI (v2) reads it as base64.
   if (service === "lambda" && operation === "Invoke") {
     for (const [k, v] of Object.entries(data))
-      if (typeof v === "string") parts.push(`--${cliOperation(k)}`, shellQuote(k === "Payload" ? toBase64(v) : v));
+      if (typeof v === "string")
+        parts.push(`--${cliOperation(k)}`, k === "Payload" ? shellQuote(toBase64(v)) : shellVars(shellQuote(v)));
     parts.push("response.json");
     return parts.join(" ");
   }
-  if (Object.keys(data).length) parts.push("--cli-input-json", shellQuote(JSON.stringify(data)));
+  if (Object.keys(data).length) parts.push("--cli-input-json", shellVars(shellQuote(JSON.stringify(data))));
   return parts.join(" ");
 }
 
 // Several steps as a shell script: the same commands in order, with a sleep where a replay would pause.
-export function cliScript(steps: (CliCall & { delayAfterMs?: number })[]): string {
+// A step that captures values reads them from the response (`--query`) into shell variables for the steps after it.
+export function cliScript(steps: (CliCall & { delayAfterMs?: number; capture?: Record<string, string> })[]): string {
   const lines = ['# Run the exports from the console\'s "Use with the AWS CLI" first.'];
   for (const s of steps) {
-    lines.push(cliCommand(s));
+    const names = Object.keys(s.capture ?? {});
+    if (names.length) {
+      const query = `[${Object.values(s.capture!).join(", ")}]`;
+      lines.push(`read -r ${names.join(" ")} <<<"$(${cliCommand(s)} --query ${shellQuote(query)} --output text)"`);
+    } else lines.push(cliCommand(s));
     if (s.delayAfterMs) lines.push(`sleep ${Math.ceil(s.delayAfterMs / 1000)}`);
   }
   return lines.join("\n");

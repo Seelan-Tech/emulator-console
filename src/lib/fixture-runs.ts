@@ -35,7 +35,7 @@ export async function runFixtureOnTarget(o: {
       steps,
       async (s) => {
         const r = await execute(ctx, s.service, s.operation, reviveBase64(s.input), s.region);
-        return r.ok ? { ok: true, ms: r.ms } : { ok: false, ms: r.ms, error: r.error.message };
+        return r.ok ? { ok: true, ms: r.ms, output: r.output } : { ok: false, ms: r.ms, error: r.error.message };
       },
       { continueOnError: o.continueOnError },
     );

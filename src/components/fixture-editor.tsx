@@ -90,6 +90,9 @@ export function FixtureEditor(props: {
                 <span className="inline-flex items-center gap-1 text-success">
                   <CheckCircle2 className="size-4" />
                   ok{r.attempts > 1 ? ` (${r.attempts} attempts)` : ""}
+                  {r.captured?.length ? (
+                    <span className="text-muted-foreground">kept {r.captured.join(", ")}</span>
+                  ) : null}
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1 text-destructive">
