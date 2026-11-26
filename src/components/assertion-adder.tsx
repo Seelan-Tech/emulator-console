@@ -4,11 +4,10 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
-import { ASSERTION_TEMPLATES, assertionStep } from "@/lib/fixture-templates";
-import type { Step } from "@/lib/schemas";
+import { ASSERTION_TEMPLATES, type AssertionStep, assertionStep } from "@/lib/fixture-templates";
 
 // Adds a ready-made assertion to a fixture: choose one, fill in the names, and it is appended to the steps.
-export function AssertionAdder({ onAdd }: { onAdd: (step: Step) => void }) {
+export function AssertionAdder({ onAdd }: { onAdd: (step: AssertionStep) => void }) {
   const [id, setId] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);

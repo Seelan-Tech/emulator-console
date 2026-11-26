@@ -34,6 +34,18 @@ test("every template builds a step that the schema accepts and Check finds no pr
   }
 });
 
+test("a template adds only what it sets: no defaults such as delayAfterMs", () => {
+  for (const t of ASSERTION_TEMPLATES) {
+    const r = assertionStep(t.id, sample);
+    assert.ok("step" in r);
+    assert.deepEqual(
+      Object.keys(r.step).sort(),
+      ["expect", "input", "operation", "retries", "retryDelayMs", "service"],
+      t.id,
+    );
+  }
+});
+
 test("a template uses what was typed, and a count has to be a whole number", () => {
   const ok = assertionStep("queue-messages", { queueUrl: " http://q ", count: "3" });
   assert.ok("step" in ok);
