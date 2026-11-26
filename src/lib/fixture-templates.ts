@@ -4,13 +4,13 @@ import type { Step } from "./schemas";
 // Each reads something the emulator holds and checks it, with the retries that state arriving late needs.
 
 export type TemplateField = { key: string; label: string; placeholder: string; value?: string };
+// Only what the template sets: the other fields of a step have defaults, so they are left out of the JSON.
+export type AssertionStep = Pick<Step, "service" | "operation" | "input" | "expect" | "retries" | "retryDelayMs">;
 export type AssertionTemplate = {
   id: string;
   label: string;
   fields: TemplateField[];
-  build: (
-    v: Record<string, string>,
-  ) => Pick<Step, "service" | "operation" | "input" | "expect" | "retries" | "retryDelayMs">;
+  build: (v: Record<string, string>) => AssertionStep;
 };
 
 const count = (v: string) => Number(v.trim());
@@ -102,11 +102,11 @@ export const ASSERTION_TEMPLATES: AssertionTemplate[] = [
 ];
 
 // The step for a template and the values typed in, or what is wrong with them.
-export function assertionStep(id: string, values: Record<string, string>): { step: Step } | { error: string } {
+export function assertionStep(id: string, values: Record<string, string>): { step: AssertionStep } | { error: string } {
   const t = ASSERTION_TEMPLATES.find((x) => x.id === id);
   if (!t) return { error: "Choose an assertion" };
   const v = Object.fromEntries(t.fields.map((f) => [f.key, (values[f.key] ?? f.value ?? "").trim()]));
   for (const f of t.fields) if (!v[f.key]) return { error: `${f.label} is required` };
   if ("count" in v && !/^\d{1,9}$/.test(v.count)) return { error: "How many must be a whole number, 0 or more" };
-  return { step: { delayAfterMs: 0, ...t.build(v) } };
+  return { step: t.build(v) };
 }

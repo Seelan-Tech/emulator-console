@@ -21,8 +21,8 @@ import { api } from "@/lib/client";
 import type { Problem } from "@/lib/fixture-check";
 import { fileSlug, fixtureFile } from "@/lib/fixture-file";
 import { assertionSummary } from "@/lib/fixture-summary";
+import type { AssertionStep } from "@/lib/fixture-templates";
 import { resumePlan } from "@/lib/fixture-vars";
-import type { Step } from "@/lib/schemas";
 
 // "3 of 4 assertions held": a run's checks at a glance, nothing when it has none.
 function AssertionCount({ results, inline = false }: { results: StepResult[]; inline?: boolean }) {
@@ -107,7 +107,7 @@ export function FixtureEditor(props: {
     }
   }
 
-  function addStep(step: Step) {
+  function addStep(step: AssertionStep) {
     let parsed: unknown;
     try {
       parsed = JSON.parse(steps);
