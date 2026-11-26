@@ -91,12 +91,15 @@ export function useMutateOp<Out = unknown, In = Record<string, unknown>>(
     onSuccess: (out, input, ctx, meta) => {
       for (const s of invalidate ?? [svc]) void qc.invalidateQueries({ queryKey: [tid, s] });
       if (record !== false && isRecordable(op))
-        recorder.add({
-          service: svc,
-          operation: op,
-          input: input ?? {},
-          ...(region !== undefined ? { region } : {}),
-        });
+        recorder.add(
+          {
+            service: svc,
+            operation: op,
+            input: input ?? {},
+            ...(region !== undefined ? { region } : {}),
+          },
+          out,
+        );
       return onSuccess?.(out, input, ctx, meta);
     },
     onError: (e, input, ctx, meta) => {
@@ -122,12 +125,15 @@ export function useRunOp() {
     const out = await callOp<Out>(tid, svc, op, input, at);
     if (o.invalidate !== false) void qc.invalidateQueries({ queryKey: [tid, svc] });
     if (o.record !== false && isRecordable(op))
-      recorder.add({
-        service: svc,
-        operation: op,
-        input: (input ?? {}) as Record<string, unknown>,
-        ...(at !== undefined ? { region: at } : {}),
-      });
+      recorder.add(
+        {
+          service: svc,
+          operation: op,
+          input: (input ?? {}) as Record<string, unknown>,
+          ...(at !== undefined ? { region: at } : {}),
+        },
+        out,
+      );
     return out;
   };
 }

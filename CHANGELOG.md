@@ -8,10 +8,22 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- The recorder links ids between steps: an id one call returned (an ARN, a queue URL, a key id) that a later call uses becomes a fixture variable, so a replay uses the id the new call returns. The Steps list shows **keeps** and **uses** per step, an unlink button undoes it, and a **Link ids** switch turns it off.
+- A **Check** button in the fixture editor: it reads the steps without calling the emulator and reports unknown operations, missing or mistyped fields, variables nothing captures, steps that send again on every replay and deletes that undo a create. A failed run in the History has **Resume from step N**.
+- **Fixture variables**: a step can keep values from its response (`capture`) and later steps use them as `{{name}}`, for ids the emulator makes up. A step that uses a variable nothing has set fails without calling the emulator, the history shows which names a step kept (never the values), and **Copy as AWS CLI script** turns them into shell variables.
 - A pending SNS subscription (http, https, email, sms) shows its delete button disabled, with the reason, instead of no button at all: SNS cannot unsubscribe a pending subscription, so it is removed only by deleting the topic. The Subscribe dialog says so up front.
 - The SNS Subscribe dialog checks `http` and `https` endpoints (the URL must start with the protocol's own scheme) and says what is wrong, instead of the emulator's `InvalidParameter: Endpoint`.
 - A **Delivery** column on an SNS topic's subscriptions: **delivers**, **needs permission** (with a **Fix** button that adds the missing function or queue policy statement), **endpoint missing** or **unknown**, and a count in the tab title. Before, a Lambda or queue subscribed from the CLI or an SDK without the permission silently received nothing.
 - **Copy as AWS CLI**: the operation runner copies the request as an `aws` command, and the recorder drawer and fixture editor copy a step, or all steps as a script (with a `sleep` where a replay pauses). The activity log still stores no inputs.
+
+### Changed
+
+- Bumped the AWS Emulator to 1.0.624.
+
+### Fixed
+
+- The restart recovery settings keep the saved **Replay automatically** choice when a baseline fixture is picked before the saved settings have loaded. Before, the switch stayed off, and saving would turn automatic replay off.
+- The Lambda **Logs** tab no longer shows an empty extra run for a cold start on newer emulators, which write an `INIT_START` line before the first `START`.
 
 ## [0.3.0] - 2026-11-17
 

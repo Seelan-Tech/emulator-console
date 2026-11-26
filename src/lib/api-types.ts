@@ -9,6 +9,7 @@ export type StepResult = {
   ms: number;
   attempts: number;
   error?: string;
+  captured?: string[];
 };
 // A fixture run as the UI shows it: from the history query (with the target name) or straight from a run.
 export type FixtureRunView = {
