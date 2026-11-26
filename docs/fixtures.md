@@ -17,6 +17,12 @@ A fixture is a recipe for rebuilding state: an ordered list of API calls. Fixtur
 
 What is recorded: successful state-changing calls from the screens and from the operation runner. What is not: reads, Lambda `Invoke`, receiving or deleting SQS messages, S3 uploads, and anything done with the AWS CLI.
 
+### Ids between steps
+
+When a call returns an id and a later call uses it, the recorder turns it into a [variable](#variables): the first step gets a `capture` and the later one `{{name}}`, so a replay uses the id the new call returns, not the one that was typed in. The **Steps** list marks the steps with **keeps queueUrl** and **uses queueUrl**; the **×** on **uses …** puts the value itself back. Removing a step that returned an id does the same for the steps that used it. The **Link ids** switch next to **Record** turns this off (it is on by default).
+
+Only values shaped like an id the emulator makes up are linked, so that things that merely look alike are not tied together: ARNs, `http(s)://` URLs (queue URLs), UUIDs (KMS key ids), prefixed hex ids (`i-…`, `vpc-…`, `sg-…`) and long upper-case ids (IAM ids). A name you typed yourself, such as a bucket or queue name, is never linked, and neither is an id that two different earlier steps returned (it is not clear which one was meant). The id is replaced wherever it appears in a later step, also inside longer text such as a queue policy.
+
 ### What a fixture cannot capture
 
 Recording happens in the console, in your browser, so only what you do in the console is seen. Calls made with the AWS CLI, an SDK or a script go straight to the emulator, which has no API that lists or logs what it holds, so there is nothing for the console to read back. Setup done that way is **not in the fixture**, and a replay will not rebuild it.
@@ -110,7 +116,7 @@ In the editor, **Replay on a target** picks a target and **Save & run** executes
 - Step outputs are not stored.
 - A failed run has **Resume from step N** in the History. It runs the fixture again from the step that failed, on the target chosen under **Replay on a target**, and saves the editor first. The steps before it are not run again, except steps that [keep a value](#variables) a later step uses, since that value is gone: the button's tooltip names them. The run's results number the steps as in the fixture. If you edited the steps since the failed run, the step numbers may no longer match.
 
-Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder does not add variables yet, so a recorded fixture still needs them written by hand.
+Replaying calls the API again; it does not restore state. A step that depends on an id returned by an earlier step can [keep it in a variable](#variables). The recorder [adds them](#ids-between-steps) for ids that one call returns and a later one uses.
 
 Every recorded step runs, in order, including ones that undo each other: a bucket you created and later deleted is created and deleted again. A recorded `SendMessage` or `Publish` is sent again. Right after a restart the emulator may still refuse a step, for example when a queue name was deleted less than 60 seconds ago; use a step's retry settings or run the fixture again.
 

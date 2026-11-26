@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- The recorder links ids between steps: an id one call returned (an ARN, a queue URL, a key id) that a later call uses becomes a fixture variable, so a replay uses the id the new call returns. The Steps list shows **keeps** and **uses** per step, an unlink button undoes it, and a **Link ids** switch turns it off.
 - A **Check** button in the fixture editor: it reads the steps without calling the emulator and reports unknown operations, missing or mistyped fields, variables nothing captures, steps that send again on every replay and deletes that undo a create. A failed run in the History has **Resume from step N**.
 - **Fixture variables**: a step can keep values from its response (`capture`) and later steps use them as `{{name}}`, for ids the emulator makes up. A step that uses a variable nothing has set fails without calling the emulator, the history shows which names a step kept (never the values), and **Copy as AWS CLI script** turns them into shell variables.
 - A pending SNS subscription (http, https, email, sms) shows its delete button disabled, with the reason, instead of no button at all: SNS cannot unsubscribe a pending subscription, so it is removed only by deleting the topic. The Subscribe dialog says so up front.

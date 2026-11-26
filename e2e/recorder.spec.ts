@@ -96,3 +96,59 @@ test("record in the UI, save as a fixture, wipe, replay, state is back (incl. a 
       await page.request.delete(`/api/fixtures/${f.id}`);
   }
 });
+
+test("the recorder links an id one call returned to the call that uses it, and the fixture replays", async ({
+  page,
+  target,
+  call,
+}) => {
+  const topic = uniq("e2e-lk");
+  const fixtureName = uniq("e2e-linked");
+  const deleteTopic = async () => {
+    const { Topics } = await call("sns", "ListTopics");
+    for (const t of Topics ?? [])
+      if (t.TopicArn.endsWith(`:${topic}`)) await call("sns", "DeleteTopic", { TopicArn: t.TopicArn }).catch(() => {});
+  };
+  try {
+    await page.goto(`${target.base}/sns`);
+    await page.getByRole("button", { name: "Create topic" }).first().click();
+    await page.getByLabel("Topic name").fill(topic);
+    await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+    await page.getByRole("link", { name: topic }).click();
+    await page.getByRole("tab", { name: "Publish" }).click();
+    await page.locator(".cm-content").first().click();
+    await page.keyboard.insertText("hello");
+    await page.getByRole("button", { name: "Publish" }).click();
+    await expectToast(page, /^Published /);
+
+    // the topic's ARN came back from CreateTopic and went into Publish: shown as a link between the two steps
+    await expect(page.getByTestId("recorder-count")).toHaveText("2 steps");
+    await page.getByRole("button", { name: "Steps", exact: true }).click();
+    await expect(page.getByText("keeps topicArn")).toBeVisible();
+    await expect(page.getByText("uses topicArn")).toBeVisible();
+
+    await page.getByRole("button", { name: "Save as fixture" }).click();
+    await page.getByPlaceholder("Fixture name").fill(fixtureName);
+    await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+    await expectToast(page, /Saved fixture/);
+    const list = await (await page.request.get("/api/fixtures")).json();
+    const id = list.find((f: any) => f.name === fixtureName).id;
+    const saved = await (await page.request.get(`/api/fixtures/${id}`)).json();
+    expect(saved.steps[0].capture).toEqual({ topicArn: "TopicArn" });
+    expect(saved.steps[1].input.TopicArn).toBe("{{topicArn}}");
+    expect(JSON.stringify(saved.steps)).not.toMatch(/links|produced/);
+
+    // wipe the topic, replay: the variable carries the new topic's ARN into the publish
+    await deleteTopic();
+    const run = await (await page.request.post(`/api/fixtures/${id}/run`, { data: { targetId: target.tid } })).json();
+    expect(run.status).toBe("succeeded");
+    expect(run.results[0].captured).toEqual(["topicArn"]);
+    const { Topics } = await call("sns", "ListTopics");
+    expect(Topics.some((t: any) => t.TopicArn.endsWith(`:${topic}`))).toBe(true);
+  } finally {
+    await deleteTopic();
+    const res = await page.request.get("/api/fixtures");
+    for (const f of (await res.json()).filter((f: any) => f.name === fixtureName))
+      await page.request.delete(`/api/fixtures/${f.id}`);
+  }
+});
