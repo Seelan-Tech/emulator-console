@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-26
+
 ### Added
 
 - The recorder links ids between steps: an id one call returned (an ARN, a queue URL, a key id) that a later call uses becomes a fixture variable, so a replay uses the id the new call returns. The Steps list shows **keeps** and **uses** per step, an unlink button undoes it, and a **Link ids** switch turns it off.
