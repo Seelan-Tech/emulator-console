@@ -71,7 +71,104 @@ describe("useRecorder", () => {
   });
 });
 
+const URL = "http://localhost:9297/000000000000/orders";
+const createQueue = { service: "sqs", operation: "CreateQueue", input: { QueueName: "orders" } } as const;
+const sendMessage = { service: "sqs", operation: "SendMessage", input: { QueueUrl: URL, MessageBody: "hi" } } as const;
+
+describe("linking ids between steps", () => {
+  test("an id a call returned and a later call uses becomes a variable, and can be unlinked", () => {
+    const { result } = renderHook(() => useRecorder(), { wrapper });
+    act(() => result.current.add(createQueue, { QueueUrl: URL }));
+    act(() => result.current.add(sendMessage, {}));
+    const [queue, send] = result.current.steps;
+    expect(queue?.capture).toEqual({ queueUrl: "QueueUrl" });
+    expect(send?.input).toEqual({ QueueUrl: "{{queueUrl}}", MessageBody: "hi" });
+
+    act(() => result.current.unlink(1, "queueUrl"));
+    expect(result.current.steps[1]?.input).toEqual(sendMessage.input);
+    expect(result.current.steps[0]?.capture).toBeUndefined();
+  });
+
+  test("it can be switched off, and the choice survives a reload", async () => {
+    const first = renderHook(() => useRecorder(), { wrapper });
+    act(() => first.result.current.setLinkIds(false));
+    act(() => first.result.current.add(createQueue, { QueueUrl: URL }));
+    act(() => first.result.current.add(sendMessage, {}));
+    expect(first.result.current.steps[1]?.input).toEqual(sendMessage.input);
+    first.unmount();
+    const again = renderHook(() => useRecorder(), { wrapper });
+    await waitFor(() => expect(again.result.current.linkIds).toBe(false));
+  });
+
+  test("removing the step that returned the id gives the later step its value back", () => {
+    const { result } = renderHook(() => useRecorder(), { wrapper });
+    act(() => result.current.add(createQueue, { QueueUrl: URL }));
+    act(() => result.current.add(sendMessage, {}));
+    act(() => result.current.remove(0));
+    expect(result.current.steps).toHaveLength(1);
+    expect(result.current.steps[0]?.input).toEqual(sendMessage.input);
+  });
+});
+
 describe("RecorderDrawer", () => {
+  function Linked() {
+    const r = useRecorder();
+    return (
+      <button
+        onClick={() => {
+          r.add(createQueue, { QueueUrl: URL });
+          r.add(sendMessage, {});
+        }}
+      >
+        record linked
+      </button>
+    );
+  }
+
+  test("shows which steps keep and use a value, unlinks on request, and saves a clean fixture", async () => {
+    const user = userEvent.setup();
+    const fetchMock = mockFetch([
+      [
+        /\/api\/fixtures$/,
+        (_u: string, init?: RequestInit) => (init?.method === "POST" ? { id: "f1", name: "n" } : []),
+      ],
+    ]);
+    renderApp(
+      <>
+        <Linked />
+        <RecorderDrawer />
+      </>,
+    );
+    await user.click(screen.getByText("record linked"));
+    await user.click(screen.getByRole("button", { name: "Steps" }));
+    expect(screen.getByText("keeps queueUrl")).toBeInTheDocument();
+    expect(screen.getByText("uses queueUrl")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /save as fixture/i }));
+    await user.type(await screen.findByPlaceholderText("Fixture name"), "n");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.getByTestId("recorder-count")).toHaveTextContent("0 steps"));
+    const at = fetchMock.mock.calls.findIndex(([, init]) => init?.method === "POST");
+    const sent = callInfo(fetchMock, at).body as { steps: Record<string, unknown>[] };
+    expect(sent.steps[0]).toEqual({ ...createQueue, capture: { queueUrl: "QueueUrl" } });
+    expect(sent.steps[1]).toEqual({ ...sendMessage, input: { QueueUrl: "{{queueUrl}}", MessageBody: "hi" } });
+  });
+
+  test("the unlink button on a step puts the value back", async () => {
+    const user = userEvent.setup();
+    renderApp(
+      <>
+        <Linked />
+        <RecorderDrawer />
+      </>,
+    );
+    await user.click(screen.getByText("record linked"));
+    await user.click(screen.getByRole("button", { name: "Steps" }));
+    await user.click(screen.getByRole("button", { name: "Unlink queueUrl in step 2" }));
+    expect(screen.queryByText("uses queueUrl")).not.toBeInTheDocument();
+    expect(screen.queryByText("keeps queueUrl")).not.toBeInTheDocument();
+  });
+
   function Seed({ n }: { n: number }) {
     const r = useRecorder();
     return (

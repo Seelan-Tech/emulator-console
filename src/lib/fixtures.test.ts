@@ -77,3 +77,59 @@ test("step schema rejects unknown services and bad operation names", () => {
   assert.throws(() => step.parse({ service: "nope", operation: "X" }));
   assert.throws(() => step.parse({ service: "s3", operation: "../x" }));
 });
+
+test("a step keeps values from its response and later steps use them", async () => {
+  const seen: unknown[] = [];
+  const out = await runSteps(
+    [
+      mk("CreateKey", { capture: { keyId: "KeyMetadata.KeyId", first: "Keys[0].Id" } }),
+      mk("CreateAlias", { input: { TargetKeyId: "{{keyId}}", Note: "key {{keyId}} / {{first}}" } }),
+    ],
+    async (s) => {
+      seen.push(s.input);
+      return { ok: true, ms: 1, output: { KeyMetadata: { KeyId: "k-123" }, Keys: [{ Id: 7 }] } };
+    },
+    { sleep: noSleep },
+  );
+  assert.equal(out.status, "succeeded");
+  assert.deepEqual(seen[1], { TargetKeyId: "k-123", Note: "key k-123 / 7" });
+  assert.deepEqual(out.results[0]!.captured, ["keyId", "first"]);
+  assert.equal(out.results[1]!.captured, undefined);
+});
+
+test("a step that uses a variable nothing has set fails without calling the emulator", async () => {
+  let calls = 0;
+  const out = await runSteps(
+    [mk("CreateAlias", { input: { TargetKeyId: "{{keyId}}" }, retries: 3 })],
+    async () => (calls++, { ok: true, ms: 1 }),
+    { sleep: noSleep },
+  );
+  assert.equal(out.status, "failed");
+  assert.equal(calls, 0);
+  assert.equal(out.results[0]!.attempts, 0);
+  assert.match(out.results[0]!.error!, /Variable "keyId" is not set/);
+});
+
+test("a path that matches nothing fails the step, and the call is not repeated", async () => {
+  let calls = 0;
+  const out = await runSteps(
+    [mk("CreateKey", { capture: { keyId: "KeyMetadata.KeyId" }, retries: 3 })],
+    async () => (calls++, { ok: true, ms: 1, output: {} }),
+    { sleep: noSleep },
+  );
+  assert.equal(out.status, "failed");
+  assert.equal(calls, 1);
+  assert.match(out.results[0]!.error!, /no "KeyMetadata.KeyId" to keep as "keyId"/);
+});
+
+test("a variable needed after a failed step stops a continue-on-error run only for the steps that use it", async () => {
+  const out = await runSteps(
+    [mk("A", { capture: { x: "X" } }), mk("B", { input: { v: "{{x}}" } }), mk("C")],
+    async (s) => (s.operation === "A" ? { ok: false, ms: 1, error: "boom" } : { ok: true, ms: 1 }),
+    { sleep: noSleep, continueOnError: true },
+  );
+  assert.deepEqual(
+    out.results.map((r) => r.ok),
+    [false, false, true],
+  );
+});

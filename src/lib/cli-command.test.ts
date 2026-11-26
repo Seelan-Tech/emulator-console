@@ -77,3 +77,23 @@ test("a script keeps the order and adds the pauses of a replay", () => {
   ]);
   assert.match(s.split("\n")[0]!, /^# /);
 });
+
+test("a script keeps captured values in shell variables and uses them in later steps", () => {
+  const script = cliScript([
+    {
+      service: "kms",
+      operation: "CreateKey",
+      input: {},
+      capture: { keyId: "KeyMetadata.KeyId", arn: "KeyMetadata.Arn" },
+    },
+    { service: "kms", operation: "CreateAlias", input: { AliasName: "alias/app", TargetKeyId: "{{keyId}}" } },
+  ]).split("\n");
+  assert.equal(
+    script[1],
+    `read -r keyId arn <<<"$(aws kms create-key --query '[KeyMetadata.KeyId, KeyMetadata.Arn]' --output text)"`,
+  );
+  assert.equal(
+    script[2],
+    `aws kms create-alias --cli-input-json '{"AliasName":"alias/app","TargetKeyId":"'"$keyId"'"}'`,
+  );
+});
