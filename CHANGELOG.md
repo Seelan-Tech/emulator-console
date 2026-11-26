@@ -18,6 +18,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- The restart recovery settings keep the saved **Replay automatically** choice when a baseline fixture is picked before the saved settings have loaded. Before, the switch stayed off, and saving would turn automatic replay off.
 - The Lambda **Logs** tab no longer shows an empty extra run for a cold start on newer emulators, which write an `INIT_START` line before the first `START`.
 
 ## [0.3.0] - 2026-11-17
