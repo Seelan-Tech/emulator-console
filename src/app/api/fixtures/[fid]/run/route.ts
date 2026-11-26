@@ -10,7 +10,7 @@ export const maxDuration = 300;
 // claims `running` rows with `for update skip locked` (see README, "Scaling").
 export const POST = route<{ fid: string }>(async (req, { fid }) => {
   const fixture = await getFixture(fid);
-  const { targetId, continueOnError } = await body(req, runRequest);
+  const { targetId, continueOnError, fromStep } = await body(req, runRequest);
   const target = await getTarget(targetId);
-  return json(await runFixtureOnTarget({ fixture, target, trigger: "manual", continueOnError }));
+  return json(await runFixtureOnTarget({ fixture, target, trigger: "manual", continueOnError, fromStep }));
 });

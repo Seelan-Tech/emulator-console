@@ -63,7 +63,7 @@ The version is shown in the header, next to the name (click it for the **About**
 
 ## Known limitations
 
-- Fixtures replay calls, not state. A step that depends on an id returned by an earlier step must be edited by hand.
+- Fixtures replay calls, not state. A step that depends on an id returned by an earlier step needs a [variable](fixtures.md#variables); the recorder adds them for [ids that a later step uses](fixtures.md#ids-between-steps).
 - Calls made with the AWS CLI, an SDK or a script are not recorded, only console actions are: see [what a fixture cannot capture](fixtures.md#what-a-fixture-cannot-capture).
 - S3 uploads are not recorded. Lambda zips are recorded as base64, which can be large. `DeleteMessage` is not recorded.
 - The DynamoDB query builder covers Query and Scan with key conditions and filters. There is no `IN` operator, no projection expression and no parallel scan; use the operation runner.

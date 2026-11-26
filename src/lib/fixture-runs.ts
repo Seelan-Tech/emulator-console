@@ -2,7 +2,9 @@ import { run as runCommand } from "./aws";
 import { reviveBase64 } from "./binary-input";
 import { NOW, one } from "./db";
 import { execute } from "./execute";
+import { resumePlan } from "./fixture-vars";
 import { runSteps } from "./fixtures";
+import { HttpError } from "./http-error";
 import type { FixtureRow } from "./repo";
 import { steps as stepsSchema } from "./schemas";
 import { resolveConn, type TargetRow } from "./targets";
@@ -23,8 +25,12 @@ export async function runFixtureOnTarget(o: {
   target: TargetRow;
   trigger: "manual" | "restart";
   continueOnError?: boolean;
+  fromStep?: number;
 }): Promise<FixtureRunRow> {
   const steps = stepsSchema.parse(o.fixture.steps);
+  if (o.fromStep !== undefined && o.fromStep >= steps.length)
+    throw new HttpError(400, `the fixture has no step ${o.fromStep + 1}`);
+  const plan = o.fromStep === undefined ? steps.map((_, i) => i) : resumePlan(steps, o.fromStep);
   const run = await one<{ id: string }>(
     "insert into fixture_runs(fixture_id, target_id, status, trigger) values ($1,$2,'running',$3) returning id",
     [o.fixture.id, o.target.id, o.trigger],
@@ -32,16 +38,17 @@ export async function runFixtureOnTarget(o: {
   const ctx = { target: o.target, source: "fixture" as const };
   try {
     const outcome = await runSteps(
-      steps,
+      plan.map((i) => steps[i]!),
       async (s) => {
         const r = await execute(ctx, s.service, s.operation, reviveBase64(s.input), s.region);
-        return r.ok ? { ok: true, ms: r.ms } : { ok: false, ms: r.ms, error: r.error.message };
+        return r.ok ? { ok: true, ms: r.ms, output: r.output } : { ok: false, ms: r.ms, error: r.error.message };
       },
       { continueOnError: o.continueOnError },
     );
     return (await one<FixtureRunRow>(
       `update fixture_runs set status = $2, results = $3, finished_at = ${NOW} where id = $1 returning *`,
-      [run!.id, outcome.status, JSON.stringify(outcome.results)],
+      // results are numbered by the step's place in the fixture, also when a resume skipped some
+      [run!.id, outcome.status, JSON.stringify(outcome.results.map((r) => ({ ...r, index: plan[r.index]! })))],
     ))!;
   } catch (e) {
     await one(`update fixture_runs set status = 'failed', finished_at = ${NOW} where id = $1`, [run!.id]);
