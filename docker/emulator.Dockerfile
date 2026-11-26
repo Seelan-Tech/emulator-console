@@ -3,7 +3,7 @@
 #
 # EMULATOR_VERSION is the only place the version lives. The "Emulator update" workflow opens a PR when AWS
 # releases a newer one; CI (including every e2e suite) must pass before it is merged. See docs/emulator-setup.md.
-ARG EMULATOR_VERSION=1.0.471
+ARG EMULATOR_VERSION=1.0.624
 
 # Download the RPM and check AWS's detached GPG signature against the published key fingerprint.
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023 AS verify
