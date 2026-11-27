@@ -243,7 +243,7 @@ export function FixtureImport() {
                     <TD className="text-xs">
                       {i.error ? <span className="text-destructive">{i.error}</span> : null}
                       {i.errors || i.warnings ? (
-                        <div className="text-warning">
+                        <div className="text-warning-text">
                           Check finds {plural(i.errors ?? 0, "error")} and {plural(i.warnings ?? 0, "warning")}
                         </div>
                       ) : null}

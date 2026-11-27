@@ -31,7 +31,7 @@ The full **[user guide](docs/index.md)** (these pages describe the latest releas
 
 - [Getting started](docs/getting-started.md) and [concepts](docs/concepts.md)
 - Service guides: [S3](docs/services/s3.md), [DynamoDB](docs/services/dynamodb.md), [SQS](docs/services/sqs.md), [Lambda](docs/services/lambda.md), [SNS](docs/services/sns.md), [EventBridge](docs/services/eventbridge.md), [Secrets Manager](docs/services/secrets-manager.md) and [the rest](docs/services/other-services.md)
-- [Fixtures and replay](docs/fixtures.md) and [the command palette](docs/command-palette.md)
+- [Message flow](docs/message-flow.md), [fixtures and replay](docs/fixtures.md) and [the command palette](docs/command-palette.md)
 - [Emulator setup, versions and telemetry](docs/emulator-setup.md), [running it locally](docs/deployment.md) and [security](docs/security.md)
 - [Configuration](docs/configuration.md), [API](docs/api.md) and [troubleshooting](docs/troubleshooting.md)
 - [Developer guide](docs/developer-guide.md)

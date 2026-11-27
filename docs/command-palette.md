@@ -10,7 +10,7 @@ Press **Ctrl+K** (**⌘K** on a Mac) anywhere, or click **Search…** in the hea
 | Group | Contents |
 | --- | --- |
 | **Recent** | The last things you opened. Shown only while the box is empty. |
-| **Go to** | Targets, Fixtures, Activity, the target's Overview and each service, and **All operations**. |
+| **Go to** | Targets, Fixtures, Activity, the target's Overview, **Message flow** and each service, and **All operations**. |
 | **Resources** | Inside a target: its buckets, tables, queues, functions, topics and secrets, plus your targets and fixtures. |
 | **Operations** | Every operation of every service, as `service.Operation` (for example `ssm.PutParameter`), once you have typed two characters. |
 | **Actions** | Use light, dark or system theme. |

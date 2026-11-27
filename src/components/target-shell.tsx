@@ -1,5 +1,5 @@
 "use client";
-import { LayoutDashboard, ListTree, Settings } from "lucide-react";
+import { GitFork, LayoutDashboard, ListTree, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -68,6 +68,14 @@ export function TargetShell({ children }: { children: React.ReactNode }) {
           <>
             <LayoutDashboard />
             Overview
+          </>,
+        )}
+        {item(
+          `${base}/flow`,
+          path.startsWith(`${base}/flow`),
+          <>
+            <GitFork />
+            Message flow
           </>,
         )}
         {GROUPS.map((g) => (
