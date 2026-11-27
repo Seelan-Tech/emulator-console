@@ -1,6 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, FunctionSquare, GitFork, Globe, Inbox, RotateCw } from "lucide-react";
+import { Bell, CalendarClock, FunctionSquare, GitFork, Globe, Inbox, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -13,34 +13,56 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { buildGraph, type GEdge, type GNode, layout, NODE_H, NODE_W, type NodeKind } from "./graph";
 import { loadFlow } from "./load";
 
-const ICON: Record<NodeKind, typeof Bell> = { topic: Bell, queue: Inbox, function: FunctionSquare, other: Globe };
+const ICON: Record<NodeKind, typeof Bell> = {
+  topic: Bell,
+  queue: Inbox,
+  function: FunctionSquare,
+  bus: CalendarClock,
+  other: Globe,
+};
 const KIND: Record<NodeKind, string> = {
   topic: "SNS topic",
   queue: "SQS queue",
   function: "Lambda function",
+  bus: "Event bus",
   other: "Outside",
 };
 
 // How an edge is told apart: colour for the subscription's health (never colour alone: the label says it too).
 type Look = { label: string; tone: string; dashed: boolean };
-export function edgeLook(e: Pick<GEdge, "kind" | "health" | "note">): Look {
+const HEALTH_LOOK: Record<string, Look> = {
+  delivers: { label: "delivers", tone: "text-success", dashed: false },
+  "needs-permission": { label: "needs permission", tone: "text-warning-text", dashed: true },
+  missing: { label: "endpoint missing", tone: "text-destructive", dashed: true },
+  pending: { label: "pending confirmation", tone: "text-muted-foreground", dashed: true },
+  "no-delivery": { label: "will not deliver", tone: "text-muted-foreground", dashed: true },
+  "not-checked": { label: "not checked", tone: "text-muted-foreground", dashed: false },
+  unknown: { label: "unknown", tone: "text-muted-foreground", dashed: true },
+};
+
+export function edgeLook(e: Pick<GEdge, "kind" | "health" | "note" | "label" | "disabled">): Look {
   if (e.kind === "dead-letter") return { label: "dead letters", tone: "text-muted-foreground", dashed: true };
   if (e.kind === "event-source")
     return { label: e.note ? `triggers (${e.note})` : "triggers", tone: "text-foreground", dashed: false };
-  switch (e.health) {
-    case "delivers":
-      return { label: "delivers", tone: "text-success", dashed: false };
-    case "needs-permission":
-      return { label: "needs permission", tone: "text-warning-text", dashed: true };
-    case "missing":
-      return { label: "endpoint missing", tone: "text-destructive", dashed: true };
-    case "pending":
-      return { label: "pending confirmation", tone: "text-muted-foreground", dashed: true };
-    case "no-delivery":
-      return { label: "will not deliver", tone: "text-muted-foreground", dashed: true };
-    default:
-      return { label: "unknown", tone: "text-muted-foreground", dashed: true };
+  const h = HEALTH_LOOK[e.health ?? "unknown"] ?? HEALTH_LOOK.unknown!;
+  if (e.kind === "rule") {
+    // a rule says its own name; a rule that is switched off is greyed, whatever its target would do
+    const name = `${e.label ?? "rule"}${e.disabled ? " (disabled)" : ""}`;
+    return {
+      label: `${name}: ${h.label}`,
+      tone: e.disabled ? "text-muted-foreground" : h.tone,
+      dashed: e.disabled || h.dashed,
+    };
   }
+  return h;
+}
+
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+// What the diagram writes on a line: a rule is just its name (the table and the tooltip say the rest), the rest are as is.
+export function lineLabel(e: Pick<GEdge, "kind" | "health" | "note" | "label" | "disabled">): string {
+  if (e.kind !== "rule") return edgeLook(e).label;
+  return `${clip(e.label ?? "rule", 18)}${e.disabled ? " (off)" : ""}`;
 }
 
 export function FlowView() {
@@ -112,6 +134,7 @@ export function FlowView() {
                     const look = edgeLook(e);
                     return (
                       <g key={e.id} className={look.tone}>
+                        <title>{look.label}</title>
                         <path
                           d={e.path}
                           fill="none"
@@ -120,22 +143,25 @@ export function FlowView() {
                           strokeDasharray={look.dashed ? "6 4" : undefined}
                           markerEnd="url(#arrow)"
                         />
-                        <text
-                          x={e.mid.x}
-                          y={e.mid.y - 6}
-                          textAnchor="middle"
-                          className="fill-current text-[11px]"
-                          stroke="var(--card)"
-                          strokeWidth={4}
-                          paintOrder="stroke"
-                        >
-                          {look.label}
-                        </text>
                       </g>
                     );
                   })}
                   {placed.nodes.map((n) => (
                     <NodeBox key={n.id} node={n} x={n.x} y={n.y} />
+                  ))}
+                  {placed.edges.map((e) => (
+                    <text
+                      key={e.id}
+                      x={e.mid.x}
+                      y={e.mid.y - 5}
+                      textAnchor="middle"
+                      className={`${edgeLook(e).tone} fill-current text-[11px]`}
+                      stroke="var(--card)"
+                      strokeWidth={4}
+                      paintOrder="stroke"
+                    >
+                      {lineLabel(e)}
+                    </text>
                   ))}
                 </svg>
               </div>
@@ -145,6 +171,7 @@ export function FlowView() {
                 <span className="text-destructive">╌ endpoint missing</span>
                 <span>╌ dead letters / will not deliver / pending</span>
                 <span className="text-foreground">━ triggers</span>
+                <span>rule lines carry the rule&apos;s name, grey when it is disabled</span>
               </div>
             </>
           )}
@@ -191,7 +218,15 @@ export function FlowView() {
                         <TD>
                           <NodeLink node={byId.get(e.to)} />
                         </TD>
-                        <TD className={look.tone}>{look.label}</TD>
+                        <TD className={look.tone}>
+                          {e.href ? (
+                            <Link className="underline-offset-2 hover:underline" href={e.href}>
+                              {look.label}
+                            </Link>
+                          ) : (
+                            look.label
+                          )}
+                        </TD>
                       </TR>
                     );
                   })}

@@ -1,10 +1,10 @@
 import { arnName, deliversOnEmulator, type Health } from "../sns/logic";
 
 // The message flow of a target: which topics deliver to which queues and functions, which queues trigger which
-// functions and which queues are dead-letter queues of others. Pure (no calls, no React): the view feeds it what it
+// functions, which queues are dead-letter queues of others and which rules send events from a bus to what. Pure (no calls, no React): the view feeds it what it
 // read, and the layout turns it into columns.
 
-export type NodeKind = "topic" | "queue" | "function" | "other";
+export type NodeKind = "topic" | "queue" | "function" | "bus" | "other";
 export type GNode = {
   id: string; // an ARN, or ext:… for something that has none
   kind: NodeKind;
@@ -13,14 +13,19 @@ export type GNode = {
   href?: string;
   ghost?: boolean; // referenced but not found: deleted, or in another region
 };
-export type EdgeKind = "subscription" | "event-source" | "dead-letter";
+export type EdgeKind = "subscription" | "event-source" | "dead-letter" | "rule";
+// What a delivery check can say. A queue, function or topic target is checked; anything else is "not-checked".
+export type EdgeHealth = Health | "pending" | "no-delivery" | "not-checked";
 export type GEdge = {
   id: string;
   kind: EdgeKind;
   from: string;
   to: string;
-  health?: Health | "pending" | "no-delivery"; // subscriptions only
+  health?: EdgeHealth; // subscriptions and rules
   note?: string;
+  label?: string; // a rule's name
+  href?: string; // where the connection itself can be edited (a rule's page)
+  disabled?: boolean; // a rule that is switched off
 };
 export type Graph = { nodes: GNode[]; edges: GEdge[] };
 
@@ -41,6 +46,15 @@ export type FlowInput = {
   }[];
   functions: { name: string; arn: string }[];
   mappings: { id: string; functionArn: string; eventSourceArn: string; state?: string }[];
+  // The rules of every event bus, each with its targets and whether they will receive from it.
+  rules?: {
+    bus: string;
+    busArn: string;
+    rule: string;
+    ruleArn: string;
+    enabled: boolean;
+    targets: { id: string; arn: string; health: EdgeHealth }[];
+  }[];
 };
 
 // A function ARN with a version or alias (…:function:name:live) is the function itself.
@@ -135,6 +149,30 @@ export function buildGraph(input: FlowInput): Graph {
       note: m.state && m.state !== "Enabled" ? m.state : undefined,
     });
   }
+
+  // A bus appears once it has a rule; a rule with no target draws no line (the bus is then listed as not connected).
+  // All buses first: a rule may send to another bus, which has to be there already or it would be drawn as not found.
+  for (const r of input.rules ?? [])
+    if (!nodes.has(r.busArn))
+      add({
+        id: r.busArn,
+        kind: "bus",
+        label: r.bus,
+        sub: "event bus",
+        href: `${input.base}/eventbridge/${encodeURIComponent(r.bus)}`,
+      });
+  for (const r of input.rules ?? [])
+    for (const t of r.targets)
+      edges.push({
+        id: `rule:${r.ruleArn}>${t.id}`,
+        kind: "rule",
+        from: r.busArn,
+        to: ensure(t.arn),
+        health: t.health,
+        label: r.rule,
+        disabled: !r.enabled,
+        href: `${input.base}/eventbridge/${encodeURIComponent(r.bus)}/${encodeURIComponent(r.rule)}`,
+      });
   return { nodes: [...nodes.values()], edges };
 }
 
@@ -142,9 +180,10 @@ export function buildGraph(input: FlowInput): Graph {
 
 export const NODE_W = 210;
 export const NODE_H = 54;
-const COL_GAP = 110;
+export const COL_GAP = 150; // room for a rule's name on its line
 const ROW_GAP = 18;
 const PAD = 16;
+const PARALLEL_GAP = 14;
 
 export type PlacedNode = GNode & { x: number; y: number; layer: number };
 export type PlacedEdge = GEdge & { path: string; mid: { x: number; y: number } };
@@ -211,14 +250,23 @@ export function layout(g: Graph): Layout {
     ),
   );
 
+  // Lines between the same two boxes (two rules sending to one queue) are spread apart, or they would be one line.
+  const siblings = new Map<string, string[]>();
+  for (const e of g.edges) siblings.set(`${e.from}>${e.to}`, [...(siblings.get(`${e.from}>${e.to}`) ?? []), e.id]);
+  const spread = (e: GEdge) => {
+    const ids = siblings.get(`${e.from}>${e.to}`)!;
+    return (ids.indexOf(e.id) - (ids.length - 1) / 2) * PARALLEL_GAP;
+  };
+
   const placedEdges: PlacedEdge[] = g.edges.map((e) => {
     const a = placed.get(e.from)!;
     const b = placed.get(e.to)!;
+    const off = spread(e);
     const forward = b.x > a.x;
-    const x1 = forward ? a.x + NODE_W : a.x + NODE_W / 2;
-    const y1 = a.y + NODE_H / 2;
-    const x2 = forward ? b.x : b.x + NODE_W / 2;
-    const y2 = b.y + NODE_H / 2;
+    const x1 = forward ? a.x + NODE_W : a.x + NODE_W / 2 + off;
+    const y1 = a.y + NODE_H / 2 + (forward ? off : 0);
+    const x2 = forward ? b.x : b.x + NODE_W / 2 + off;
+    const y2 = b.y + NODE_H / 2 + (forward ? off : 0);
     const dx = forward ? Math.max(40, (x2 - x1) / 2) : 0;
     // a line that does not go forward (same column, or a loop) leaves from the bottom and comes in at the top
     const path = forward

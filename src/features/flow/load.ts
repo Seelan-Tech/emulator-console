@@ -1,9 +1,11 @@
 import { callOp } from "@/lib/aws-client";
 
+import { inspectTarget } from "../eventbridge/health";
+import { targetHealth, targetKind } from "../eventbridge/logic";
 import { inspect } from "../sns/health";
 import { arnRegion, type Health, subscriptionHealth } from "../sns/logic";
 import { counts } from "../sqs/logic";
-import type { FlowInput } from "./graph";
+import type { EdgeHealth, FlowInput } from "./graph";
 
 type Sub = { SubscriptionArn: string; Protocol: string; Endpoint: string };
 type Parts = Omit<FlowInput, "base">;
@@ -139,6 +141,66 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
     return out;
   });
 
+  // Every rule of every bus with its targets, and whether each queue, function or topic target will receive from it.
+  const rules = await soft("EventBridge", [] as NonNullable<Parts["rules"]>, async () => {
+    const { EventBuses = [] } = await callOp<{ EventBuses?: { Name: string; Arn: string }[] }>(
+      tid,
+      "eventbridge",
+      "ListEventBuses",
+      {},
+      region,
+    );
+    const healthOf = async (arn: string, ruleArn: string): Promise<EdgeHealth> => {
+      if (targetKind(arn) === "other") return "not-checked";
+      try {
+        // a queue this page has already read needs no second look at its policy
+        if (targetKind(arn) === "sqs" && (arnRegion(arn) ?? region) === region)
+          return targetHealth(
+            arn,
+            policyOf.has(arn) ? { exists: true, policy: policyOf.get(arn) } : { exists: false },
+            ruleArn,
+          );
+        return targetHealth(arn, await inspectTarget(tid, arn, region), ruleArn);
+      } catch {
+        return "unknown";
+      }
+    };
+    const out: NonNullable<Parts["rules"]> = [];
+    for (const b of EventBuses) {
+      const found = await all<{ Name: string; Arn?: string; State?: string }>(async (NextToken) => {
+        const r = await callOp<{ Rules?: { Name: string; Arn?: string; State?: string }[]; NextToken?: string }>(
+          tid,
+          "eventbridge",
+          "ListRules",
+          { EventBusName: b.Name, ...(NextToken ? { NextToken } : {}) },
+          region,
+        );
+        return { items: r.Rules ?? [], next: r.NextToken };
+      });
+      for (const rule of found) {
+        if (!rule.Arn) continue;
+        const { Targets = [] } = await callOp<{ Targets?: { Id: string; Arn: string }[] }>(
+          tid,
+          "eventbridge",
+          "ListTargetsByRule",
+          { Rule: rule.Name, EventBusName: b.Name },
+          region,
+        );
+        const targets: NonNullable<Parts["rules"]>[number]["targets"] = [];
+        for (const t of Targets) targets.push({ id: t.Id, arn: t.Arn, health: await healthOf(t.Arn, rule.Arn) });
+        out.push({
+          bus: b.Name,
+          busArn: b.Arn,
+          rule: rule.Name,
+          ruleArn: rule.Arn,
+          enabled: rule.State !== "DISABLED",
+          targets,
+        });
+      }
+    }
+    return out;
+  });
+
   return {
     parts: {
       topics,
@@ -153,6 +215,7 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
       })),
       functions,
       mappings,
+      rules,
     },
     warnings,
   };
