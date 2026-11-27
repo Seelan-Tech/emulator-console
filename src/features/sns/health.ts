@@ -11,7 +11,7 @@ const isMissing = (e: unknown) =>
   e instanceof OpError && /ResourceNotFound|NonExistentQueue|QueueDoesNotExist/.test(e.awsName ?? "");
 
 // The function or queue a subscription delivers to, and the policy that decides whether the topic may use it.
-async function inspect(tid: string, s: SubLike, fallbackRegion: string): Promise<EndpointState> {
+export async function inspect(tid: string, s: SubLike, fallbackRegion: string): Promise<EndpointState> {
   const region = arnRegion(s.Endpoint) ?? fallbackRegion;
   try {
     if (s.Protocol === "lambda") {

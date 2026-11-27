@@ -21,6 +21,7 @@ test("main screens have no serious accessibility violations", async ({ page, tar
     ["SQS", `${target.base}/sqs`],
     ["Lambda", `${target.base}/lambda`],
     ["SNS", `${target.base}/sns`],
+    ["message flow", `${target.base}/flow`],
     ["Secrets Manager", `${target.base}/secrets`],
     ["operations", `${target.base}/s/ssm`],
     ["fixtures", `/fixtures`],

@@ -111,3 +111,13 @@ test("ids are unique across what the palette builds", () => {
   ];
   assert.equal(new Set(all.map((i) => i.id)).size, all.length);
 });
+
+test("the message flow page is in the quick navigation of a target", () => {
+  const flow = navigationItems("t1").find((i) => i.id === "nav:flow")!;
+  assert.equal(flow.href, "/t/t1/flow");
+  assert.equal(flow.group, "Go to");
+  assert.equal(
+    navigationItems(null).some((i) => i.id === "nav:flow"),
+    false,
+  );
+});
