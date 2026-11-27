@@ -20,6 +20,13 @@ LABEL org.opencontainers.image.source="https://github.com/Seelan-Tech/emulator-c
       org.opencontainers.image.description="A local web console for use with the AWS Emulator" \
       org.opencontainers.image.licenses="MIT"
 WORKDIR /app
+# Debian has fixed CVE-2025-6020 (linux-pam) in 1.5.2-6+deb12u3, but node:24-slim has not been rebuilt with it, and the
+# image scan fails on it. Delete this layer once `docker run --rm node:24-slim dpkg -l libpam0g` shows that version or newer.
+# On a network that cannot reach the Debian mirrors the upgrade is skipped (a local build still works; the image scan in
+# CI is what checks that it took effect), and the short timeout keeps that from stalling the build.
+RUN apt-get -o Acquire::http::Timeout=15 -o Acquire::Retries=1 update \
+ && apt-get install -y --no-install-recommends --only-upgrade libpam-modules libpam-modules-bin libpam-runtime libpam0g \
+ && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
