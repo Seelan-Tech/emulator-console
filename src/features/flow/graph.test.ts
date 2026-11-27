@@ -2,7 +2,17 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { buildGraph, COL_GAP, type FlowInput, layout, NODE_H, NODE_W } from "./graph";
+import {
+  buildGraph,
+  COL_GAP,
+  filterFlows,
+  type FlowInput,
+  isProblem,
+  layout,
+  NODE_H,
+  NODE_W,
+  splitFlows,
+} from "./graph";
 
 const T = (n: string) => `arn:aws:sns:us-east-1:000000000000:${n}`;
 const Q = (n: string) => `arn:aws:sqs:us-east-1:000000000000:${n}`;
@@ -267,4 +277,134 @@ test("lines between the same two boxes are spread apart instead of drawn on top 
   );
   const s = single.nodes.find((n) => n.label === "s")!;
   assert.equal(single.edges[0]!.mid.y, (single.nodes.find((n) => n.label === "b")!.y + s.y + NODE_H) / 2);
+});
+
+// ---- flows -----------------------------------------------------------------------------------------------------
+
+// n separate topics, each with a queue; the topic named in `broken` has no permission
+function manyFlows(n: number, broken: string[] = []) {
+  return buildGraph(
+    input({
+      topics: Array.from({ length: n }, (_, i) => ({
+        arn: T(`t${i}`),
+        subscriptions: [
+          {
+            arn: `s${i}`,
+            protocol: "sqs",
+            endpoint: Q(`q${i}`),
+            health: broken.includes(`t${i}`) ? ("needs-permission" as const) : ("delivers" as const),
+          },
+        ],
+      })),
+      queues: Array.from({ length: n }, (_, i) => queue(`q${i}`)),
+    }),
+  );
+}
+
+test("separate groups of connected resources become separate flows, and a lone resource is in none", () => {
+  const g = manyFlows(3);
+  g.nodes.push({ id: "lonely", kind: "queue", label: "lonely" });
+  const flows = splitFlows(g);
+  assert.equal(flows.length, 3);
+  assert.ok(flows.every((f) => f.graph.nodes.length === 2 && f.graph.edges.length === 1));
+  assert.ok(!flows.some((f) => f.graph.nodes.some((n) => n.id === "lonely")));
+});
+
+test("resources joined through a shared queue or a chain stay in one flow", () => {
+  const g = buildGraph(
+    input({
+      topics: [
+        { arn: T("a"), subscriptions: [{ arn: "s1", protocol: "sqs", endpoint: Q("shared"), health: "delivers" }] },
+        { arn: T("b"), subscriptions: [{ arn: "s2", protocol: "sqs", endpoint: Q("shared"), health: "delivers" }] },
+      ],
+      queues: [queue("shared", { deadLetterTargetArn: Q("dlq") }), queue("dlq")],
+    }),
+  );
+  const flows = splitFlows(g);
+  assert.equal(flows.length, 1);
+  assert.equal(flows[0]!.graph.nodes.length, 4);
+  assert.equal(flows[0]!.graph.edges.length, 3);
+  // named after where it starts
+  assert.equal(flows[0]!.title, "a, b");
+});
+
+test("a flow with many sources is titled with two names and a count", () => {
+  const g = buildGraph(
+    input({
+      topics: ["a", "b", "c", "d"].map((n) => ({
+        arn: T(n),
+        subscriptions: [{ arn: `s${n}`, protocol: "sqs", endpoint: Q("one"), health: "delivers" as const }],
+      })),
+      queues: [queue("one")],
+    }),
+  );
+  assert.equal(splitFlows(g)[0]!.title, "a, b and 2 more");
+});
+
+test("flows with a problem come first, then the bigger ones", () => {
+  const flows = splitFlows(manyFlows(4, ["t3"]));
+  assert.equal(flows[0]!.problems, 1);
+  assert.equal(flows[0]!.title, "t3");
+  assert.deepEqual(
+    flows.slice(1).map((f) => f.title),
+    ["t0", "t1", "t2"],
+  );
+});
+
+test("what counts as a problem: a missing permission or endpoint, an unknown check, a trigger that is not enabled", () => {
+  const e = (x: object) => ({ id: "e", kind: "subscription", from: "a", to: "b", ...x }) as never;
+  assert.equal(isProblem(e({ health: "needs-permission" })), true);
+  assert.equal(isProblem(e({ health: "missing" })), true);
+  assert.equal(isProblem(e({ health: "unknown" })), true);
+  assert.equal(isProblem(e({ health: "delivers" })), false);
+  assert.equal(isProblem(e({ health: "pending" })), false);
+  assert.equal(isProblem(e({ health: "no-delivery" })), false);
+  assert.equal(isProblem(e({ kind: "event-source", note: "Disabled" })), true);
+  assert.equal(isProblem(e({ kind: "event-source" })), false);
+  // a rule that is switched off on purpose is not something to fix
+  assert.equal(isProblem(e({ kind: "rule", health: "needs-permission", disabled: true })), false);
+  assert.equal(isProblem(e({ kind: "rule", health: "needs-permission" })), true);
+});
+
+test("the filter keeps flows with a problem and flows with a resource or rule whose name matches", () => {
+  const flows = splitFlows(manyFlows(5, ["t1"]));
+  assert.equal(filterFlows(flows, { problemsOnly: false, query: "" }).length, 5);
+  assert.deepEqual(
+    filterFlows(flows, { problemsOnly: true, query: "" }).map((f) => f.title),
+    ["t1"],
+  );
+  // a match on the queue finds the flow of its topic, whatever the case
+  assert.deepEqual(
+    filterFlows(flows, { problemsOnly: false, query: " Q3 " }).map((f) => f.title),
+    ["t3"],
+  );
+  assert.equal(filterFlows(flows, { problemsOnly: true, query: "q3" }).length, 0);
+  assert.equal(filterFlows(flows, { problemsOnly: false, query: "nothing" }).length, 0);
+});
+
+test("a rule's name can be searched", () => {
+  const g = buildGraph(
+    input({
+      queues: [queue("q")],
+      rules: [
+        {
+          bus: "b",
+          busArn: "arn:aws:events:us-east-1:000000000000:event-bus/b",
+          rule: "on-order",
+          ruleArn: "arn:aws:events:us-east-1:000000000000:rule/b/on-order",
+          enabled: true,
+          targets: [{ id: "1", arn: Q("q"), health: "delivers" }],
+        },
+      ],
+    }),
+  );
+  assert.equal(filterFlows(splitFlows(g), { problemsOnly: false, query: "on-ord" }).length, 1);
+});
+
+test("a hundred separate flows are split and laid out quickly", () => {
+  const started = Date.now();
+  const flows = splitFlows(manyFlows(300, ["t7"]));
+  for (const f of flows) layout(f.graph);
+  assert.equal(flows.length, 300);
+  assert.ok(Date.now() - started < 2000);
 });

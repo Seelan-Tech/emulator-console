@@ -25,7 +25,11 @@ async function all<T>(read: (token?: string) => Promise<{ items: T[]; next?: str
 
 // Reads every topic, queue, function and event source mapping of a target, one call at a time (the emulator drops
 // parallel bursts). A service that fails to answer leaves its part empty and adds a warning: the rest still draws.
-export async function loadFlow(tid: string, region: string): Promise<{ parts: Parts; warnings: string[] }> {
+export async function loadFlow(
+  tid: string,
+  region: string,
+  progress: (what: string) => void = () => {},
+): Promise<{ parts: Parts; warnings: string[] }> {
   const warnings: string[] = [];
   const soft = async <T>(what: string, fallback: T, fn: () => Promise<T>): Promise<T> => {
     try {
@@ -37,9 +41,19 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
   };
 
   const queues = await soft("SQS", [] as Parts["queues"], async () => {
-    const { QueueUrls = [] } = await callOp<{ QueueUrls?: string[] }>(tid, "sqs", "ListQueues", {}, region);
+    const QueueUrls = await all<string>(async (NextToken) => {
+      const r = await callOp<{ QueueUrls?: string[]; NextToken?: string }>(
+        tid,
+        "sqs",
+        "ListQueues",
+        NextToken ? { NextToken } : {},
+        region,
+      );
+      return { items: r.QueueUrls ?? [], next: r.NextToken };
+    });
     const out: (Parts["queues"][number] & { policy?: string })[] = [];
-    for (const url of QueueUrls) {
+    for (const [i, url] of QueueUrls.entries()) {
+      progress(`Reading queues: ${i + 1} of ${QueueUrls.length}`);
       const { Attributes = {} } = await callOp<{ Attributes?: Record<string, string> }>(
         tid,
         "sqs",
@@ -68,6 +82,7 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
   });
   const policyOf = new Map(queues.map((q) => [q.arn, (q as { policy?: string }).policy]));
 
+  progress("Reading functions");
   const functions = await soft("Lambda", [] as Parts["functions"], () =>
     all(async (Marker) => {
       const r = await callOp<{ Functions?: { FunctionName: string; FunctionArn: string }[]; NextMarker?: string }>(
@@ -102,9 +117,19 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
   );
 
   const topics = await soft("SNS", [] as Parts["topics"], async () => {
-    const { Topics = [] } = await callOp<{ Topics?: { TopicArn: string }[] }>(tid, "sns", "ListTopics", {}, region);
+    const Topics = await all<{ TopicArn: string }>(async (NextToken) => {
+      const r = await callOp<{ Topics?: { TopicArn: string }[]; NextToken?: string }>(
+        tid,
+        "sns",
+        "ListTopics",
+        NextToken ? { NextToken } : {},
+        region,
+      );
+      return { items: r.Topics ?? [], next: r.NextToken };
+    });
     const out: Parts["topics"] = [];
-    for (const t of Topics) {
+    for (const [i, t] of Topics.entries()) {
+      progress(`Reading topics: ${i + 1} of ${Topics.length}`);
       const subs = await all<Sub>(async (NextToken) => {
         const r = await callOp<{ Subscriptions?: Sub[]; NextToken?: string }>(
           tid,
@@ -143,13 +168,16 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
 
   // Every rule of every bus with its targets, and whether each queue, function or topic target will receive from it.
   const rules = await soft("EventBridge", [] as NonNullable<Parts["rules"]>, async () => {
-    const { EventBuses = [] } = await callOp<{ EventBuses?: { Name: string; Arn: string }[] }>(
-      tid,
-      "eventbridge",
-      "ListEventBuses",
-      {},
-      region,
-    );
+    const EventBuses = await all<{ Name: string; Arn: string }>(async (NextToken) => {
+      const r = await callOp<{ EventBuses?: { Name: string; Arn: string }[]; NextToken?: string }>(
+        tid,
+        "eventbridge",
+        "ListEventBuses",
+        NextToken ? { NextToken } : {},
+        region,
+      );
+      return { items: r.EventBuses ?? [], next: r.NextToken };
+    });
     const healthOf = async (arn: string, ruleArn: string): Promise<EdgeHealth> => {
       if (targetKind(arn) === "other") return "not-checked";
       try {
@@ -166,7 +194,8 @@ export async function loadFlow(tid: string, region: string): Promise<{ parts: Pa
       }
     };
     const out: NonNullable<Parts["rules"]> = [];
-    for (const b of EventBuses) {
+    for (const [i, b] of EventBuses.entries()) {
+      progress(`Reading event buses: ${i + 1} of ${EventBuses.length}`);
       const found = await all<{ Name: string; Arn?: string; State?: string }>(async (NextToken) => {
         const r = await callOp<{ Rules?: { Name: string; Arn?: string; State?: string }[]; NextToken?: string }>(
           tid,

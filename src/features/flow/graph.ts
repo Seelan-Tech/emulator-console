@@ -284,3 +284,77 @@ export function layout(g: Graph): Layout {
     isolated,
   };
 }
+
+// ---- flows (connected groups) ------------------------------------------------------------------------------------
+
+// A connection that needs a look: a missing permission or endpoint, a delivery that could not be checked, a function
+// trigger that is not enabled. A rule that is switched off on purpose is not a problem.
+export function isProblem(e: GEdge): boolean {
+  if (e.kind === "event-source") return !!e.note;
+  if (e.disabled) return false;
+  return e.health === "needs-permission" || e.health === "missing" || e.health === "unknown";
+}
+
+export type Flow = { id: string; title: string; graph: Graph; problems: number };
+
+// Splits a graph into the groups of resources that are connected to each other, so that a hundred resources become
+// a few small diagrams instead of one big one. Groups with problems come first, then the bigger ones.
+export function splitFlows(g: Graph): Flow[] {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    for (let c = x; c !== r;) {
+      const next = parent.get(c)!;
+      parent.set(c, r);
+      c = next;
+    }
+    return r;
+  };
+  for (const e of g.edges) {
+    for (const id of [e.from, e.to]) if (!parent.has(id)) parent.set(id, id);
+    parent.set(find(e.from), find(e.to));
+  }
+  const groups = new Map<string, Graph>();
+  const group = (id: string) => {
+    const root = find(id);
+    let gr = groups.get(root);
+    if (!gr) groups.set(root, (gr = { nodes: [], edges: [] }));
+    return gr;
+  };
+  for (const n of g.nodes) if (parent.has(n.id)) group(n.id).nodes.push(n);
+  for (const e of g.edges) group(e.from).edges.push(e);
+
+  const flows = [...groups.values()].map((graph): Flow => {
+    const targets = new Set(graph.edges.map((e) => e.to));
+    const sources = graph.nodes.filter((n) => !targets.has(n.id));
+    const named = (sources.length ? sources : graph.nodes).map((n) => n.label).sort((a, b) => a.localeCompare(b));
+    const title = named.length > 2 ? `${named.slice(0, 2).join(", ")} and ${named.length - 2} more` : named.join(", ");
+    return {
+      id: graph.nodes.map((n) => n.id).sort()[0]!,
+      title,
+      graph,
+      problems: graph.edges.filter(isProblem).length,
+    };
+  });
+  return flows.sort(
+    (a, b) =>
+      Number(b.problems > 0) - Number(a.problems > 0) ||
+      b.graph.nodes.length - a.graph.nodes.length ||
+      a.title.localeCompare(b.title),
+  );
+}
+
+export type FlowFilter = { problemsOnly: boolean; query: string };
+
+// The groups to show: only those with a problem, and only those with a resource or connection matching the search.
+export function filterFlows(flows: Flow[], f: FlowFilter): Flow[] {
+  const q = f.query.trim().toLowerCase();
+  return flows.filter(
+    (fl) =>
+      (!f.problemsOnly || fl.problems > 0) &&
+      (!q ||
+        fl.graph.nodes.some((n) => n.label.toLowerCase().includes(q)) ||
+        fl.graph.edges.some((e) => (e.label ?? "").toLowerCase().includes(q))),
+  );
+}

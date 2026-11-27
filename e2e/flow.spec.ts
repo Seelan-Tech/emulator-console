@@ -57,6 +57,9 @@ test("the message flow shows who delivers to whom, what is missing a permission 
     await call("sns", "Subscribe", { TopicArn: topicArn, Protocol: "sqs", Endpoint: arns.blocked });
 
     await page.goto(`/t/${target.tid}/flow`);
+    // each group of connected resources is a card of its own
+    const card = page.getByTestId("flow-card").filter({ hasText: names.topic });
+    await expect(card).toHaveCount(1);
     const row = (from: string, to: string) =>
       page.getByTestId("flow-table").getByRole("row").filter({ hasText: from }).filter({ hasText: to });
     await expect(row(names.topic, names.ok)).toContainText("delivers");
@@ -64,7 +67,7 @@ test("the message flow shows who delivers to whom, what is missing a permission 
     await expect(row(names.ok, names.dlq)).toContainText("dead letters");
     // a queue with no connection is listed apart, not drawn
     await expect(page.getByRole("region", { name: "Not connected" })).toContainText(names.lonely);
-    await expect(page.getByTestId("flow-diagram")).not.toContainText(names.lonely);
+    await expect(page.getByTestId("flow-card").filter({ hasText: names.lonely })).toHaveCount(0);
     // coloured lines and labels on a drawn diagram stay readable in both themes
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
@@ -76,12 +79,25 @@ test("the message flow shows who delivers to whom, what is missing a permission 
       expect(found, scheme).toEqual([]);
     }
     // the diagram shows the connections too, and its boxes are links to the resources
-    await expect(page.getByTestId("flow-diagram")).toContainText("needs permission");
+    await expect(card.getByTestId("flow-diagram")).toContainText("needs permission");
     await page
+      .getByTestId("flow-card")
+      .filter({ hasText: names.topic })
       .getByTestId("flow-diagram")
       .getByRole("link", { name: new RegExp(`^SQS queue\\s*${names.ok}`) })
       .click();
     await expect(page).toHaveURL(new RegExp(`/sqs/${names.ok}$`));
+
+    // the search narrows to the flow of one resource; "only connections with a problem" lists just the blocked one
+    await page.goto(`/t/${target.tid}/flow`);
+    await page.getByRole("searchbox", { name: "Search the flow" }).fill(names.ok);
+    await expect(page.getByTestId("flow-card")).toHaveCount(1);
+    await expect(page.getByTestId("flow-card")).toContainText(names.topic);
+    await page.getByRole("searchbox", { name: "Search the flow" }).fill("");
+    await page.getByTestId("flow-problems-only").check();
+    await expect(page.getByTestId("flow-card").filter({ hasText: names.topic })).toHaveCount(1);
+    await expect(row(names.topic, names.blocked)).toContainText("needs permission");
+    await expect(row(names.topic, names.ok)).toHaveCount(0);
 
     // the palette finds the page
     await page.keyboard.press("ControlOrMeta+k");
@@ -177,6 +193,8 @@ test("the message flow draws a bus's rules to their targets, named after the rul
     // the diagram carries the rule's name too
     await expect(
       page
+        .getByTestId("flow-card")
+        .filter({ hasText: names.bus })
         .getByTestId("flow-diagram")
         .locator("text")
         .filter({ hasText: names.live.slice(0, 12) })
@@ -190,6 +208,8 @@ test("the message flow draws a bus's rules to their targets, named after the rul
     await expect(page).toHaveURL(new RegExp(`/eventbridge/${names.bus}/${names.live}$`));
     await page.goBack();
     await page
+      .getByTestId("flow-card")
+      .filter({ hasText: names.bus })
       .getByTestId("flow-diagram")
       .getByRole("link", { name: new RegExp(`^Event bus\\s*${names.bus}`) })
       .click();
@@ -197,7 +217,7 @@ test("the message flow draws a bus's rules to their targets, named after the rul
 
     // readable in both themes (the diagram now has rule labels and a bus box)
     await page.goto(`/t/${target.tid}/flow`);
-    await expect(page.getByTestId("flow-diagram")).toContainText(names.bus);
+    await expect(page.getByTestId("flow-card").filter({ hasText: names.bus })).toBeVisible();
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       const found = (

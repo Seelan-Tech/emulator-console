@@ -21,6 +21,16 @@ A dashed box is something a connection names but this region does not have. An e
 
 Resources with no connection are listed under **Not connected** instead of being drawn, so they do not push the connected ones aside. Below the diagram, **Connections** lists the same lines as a table: use it for a screen reader, or to copy a name.
 
+## Many resources
+
+Since 0.5.0. Resources that are connected to each other, directly or through a shared queue, form a **flow**, and each flow is drawn on its own card, titled after where it starts ("orders, billing and 2 more") with its size and its number of problems. A hundred resources become a handful of small diagrams, not one wide one.
+
+- With six flows or fewer every card is open. With more, only the cards with a problem are open; click a title to open or fold any card.
+- **Cards with a problem come first**, then the bigger ones. A problem is a line that **needs permission**, has its **endpoint missing**, could not be checked (**unknown**), or is a trigger that is not enabled. A rule that is switched off on purpose is not counted.
+- **Only connections with a problem** keeps the flows with a problem, dims their healthy lines, and lists only the problem lines in the table.
+- **Search** finds the flows that have a queue, topic, function, bus or rule with that text in its name, and opens them.
+- While a large target loads, the page says what it is reading ("Reading queues: 12 of 40").
+
 ## What it reads
 
 Topics and their subscriptions, queues (their attributes, redrive policy and policy), functions, event source mappings, and event buses with their rules and targets, of the region chosen in the header, one call at a time (the emulator drops connections under parallel bursts). A service that does not answer is named in a warning, and the rest is still drawn. **Refresh** reads again; the page does not poll.
