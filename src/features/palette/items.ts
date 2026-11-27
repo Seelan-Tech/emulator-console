@@ -73,6 +73,13 @@ export function navigationItems(tid: string | null): PaletteItem[] {
       href: base,
       keywords: "coverage services probe",
     });
+    items.push({
+      id: "nav:flow",
+      group: "Go to",
+      label: "Message flow",
+      href: `${base}/flow`,
+      keywords: "graph diagram",
+    });
     for (const s of SERVICES) {
       items.push({
         id: `nav:${s.id}`,

@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Message flow**: a page in each target's sidebar that draws how topics, queues and functions connect. SNS subscriptions show whether they deliver (or need a permission, or point at something missing), queues show their dead-letter queue, and Lambda event source mappings show what triggers a function. Boxes link to the resources, resources with no connection are listed apart, and a table lists the same connections for screen readers.
 - **Export and import for fixtures**: **Export** in the fixture editor and **Export all** on the Fixtures page save fixtures as JSON files that can be committed next to the code, and **Import** reads them back. Import shows what will happen first (new, renamed, replaced, skipped, not valid, problems found by **Check**), and a name that exists is saved as `name (2)`, replaces the existing fixture or is skipped. The console asks before it saves a file with values that may be secret (a secret, a secure parameter, function environment variables).
 - **Add an assertion…** in the fixture editor: ready-made checks (a queue has N messages, a table has N items, an S3 object exists, a function is `Active`, a topic has N subscriptions, a secret exists) that are appended to the steps with suitable retries. The run results and History show how many checks hold (**2 of 3 assertions held**).
 - **Copy as AWS CLI script** exports assertions as shell tests that retry like a replay and stop the script with `check failed: …` when one does not hold.

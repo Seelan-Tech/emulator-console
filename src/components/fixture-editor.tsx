@@ -245,7 +245,7 @@ export function FixtureEditor(props: {
                 problems.map((p, i) => (
                   <p
                     key={i}
-                    className={`flex items-start gap-1 ${p.level === "error" ? "text-destructive" : "text-warning"}`}
+                    className={`flex items-start gap-1 ${p.level === "error" ? "text-destructive" : "text-warning-text"}`}
                   >
                     {p.level === "error" ? (
                       <XCircle className="mt-0.5 size-4 shrink-0" />
