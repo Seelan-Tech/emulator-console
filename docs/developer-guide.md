@@ -100,6 +100,10 @@ The rules for `main` live in `.github/rulesets/main.json`: changes go through a 
 
 Re-run it after changing the file. When a CI job is added or renamed, update the check names in `main.json` too.
 
+## The base image and its security patches
+
+The Dockerfile's runtime stage upgrades libpam itself (the layer names CVE-2025-6020) while `node:24-slim` still ships the vulnerable version, because the image scan in CI fails on it otherwise. The daily `Base image watch` workflow (`.github/workflows/base-image-watch.yml`, which runs `scripts/check-base-image.sh`) opens an issue once the base image has the fix: delete the layer in a small PR then, and let the Image scan confirm. Run the script yourself to check at any time; it needs Docker and reports with its exit code (0 fixed, 1 not yet, 2 could not check, 3 nothing left to watch). A layer like this should always say when it can go and have something that tells you.
+
 ## Updating the AWS Emulator
 
 The emulator version is pinned in `docker/emulator.Dockerfile` and bumped by PRs from `.github/workflows/emulator-update.yml`. See [Emulator setup and versions](emulator-setup.md) for how to review, apply and roll back a bump.
