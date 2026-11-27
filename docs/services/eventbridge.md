@@ -36,6 +36,10 @@ The check reads the target's policy. It does not look at a function that errors,
 
 **Test the pattern** on a rule checks an event against the rule's pattern without sending anything. It starts from a sample event built from the pattern's plain values, and shows **matches** or **does not match**.
 
+## In the message flow
+
+The [message flow](../message-flow.md) page draws each rule as a line from its bus to its targets, with the same delivery check, so you can see at a glance which rules deliver and which still need a permission.
+
 ## What it does not cover
 
 Archives, replays, API destinations, connections, schemas, input transformers, dead-letter queues on a target, cross-account buses and event bus policies are not on these screens. [All operations](other-services.md) can call any of them.

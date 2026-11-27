@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 
 import { test } from "vitest";
 
-import { buildGraph, type FlowInput, layout, NODE_H, NODE_W } from "./graph";
+import { buildGraph, COL_GAP, type FlowInput, layout, NODE_H, NODE_W } from "./graph";
 
 const T = (n: string) => `arn:aws:sns:us-east-1:000000000000:${n}`;
 const Q = (n: string) => `arn:aws:sqs:us-east-1:000000000000:${n}`;
@@ -122,7 +122,7 @@ test("a node goes one column right of everything that feeds it", () => {
     l.isolated.map((n) => n.label),
     ["other"],
   );
-  assert.equal(l.width, 16 * 2 + 3 * NODE_W + 2 * 110);
+  assert.equal(l.width, 16 * 2 + 3 * NODE_W + 2 * COL_GAP);
   // a line leaves the right side of its source and enters the left side of its target
   const e = l.edges.find((x) => x.kind === "subscription")!;
   const a = l.nodes.find((n) => n.label === "t")!;
@@ -160,4 +160,111 @@ test("a cycle does not hang the layout, and an empty graph is empty", () => {
   assert.equal(l.edges.length, 3);
   const empty = layout(buildGraph(input()));
   assert.deepEqual([empty.nodes.length, empty.edges.length, empty.isolated.length], [0, 0, 0]);
+});
+
+const BUS = (n: string) => `arn:aws:events:us-east-1:000000000000:event-bus/${n}`;
+const RULE = (bus: string, n: string) => `arn:aws:events:us-east-1:000000000000:rule/${bus}/${n}`;
+const rule = (bus: string, name: string, targets: { id: string; arn: string; health: never }[], enabled = true) => ({
+  bus,
+  busArn: BUS(bus),
+  rule: name,
+  ruleArn: RULE(bus, name),
+  enabled,
+  targets,
+});
+
+test("a rule is a line from its bus to each target, named after the rule and linking to it", () => {
+  const g = buildGraph(
+    input({
+      queues: [queue("audit")],
+      functions: [{ name: "worker", arn: F("worker") }],
+      rules: [
+        rule("orders", "to-audit", [{ id: "a", arn: Q("audit"), health: "delivers" as never }]),
+        rule("orders", "to-worker", [{ id: "w", arn: F("worker"), health: "needs-permission" as never }], false),
+      ],
+    }),
+  );
+  const bus = g.nodes.find((n) => n.kind === "bus")!;
+  assert.equal(bus.label, "orders");
+  assert.equal(bus.href, "/t/1/eventbridge/orders");
+  assert.equal(g.nodes.filter((n) => n.kind === "bus").length, 1); // one bus for both rules
+  assert.deepEqual(
+    g.edges.map(
+      (e) => `${e.kind} ${e.label} ${e.to.split(/[:/]/).pop()} ${e.health}${e.disabled ? " disabled" : ""} ${e.href}`,
+    ),
+    [
+      "rule to-audit audit delivers /t/1/eventbridge/orders/to-audit",
+      "rule to-worker worker needs-permission disabled /t/1/eventbridge/orders/to-worker",
+    ],
+  );
+  assert.ok(g.edges.every((e) => e.from === BUS("orders")));
+});
+
+test("a rule's target that was not found, or is not a queue, function or topic, is a ghost node", () => {
+  const g = buildGraph(
+    input({
+      rules: [
+        rule("default", "r", [
+          { id: "q", arn: Q("gone"), health: "missing" as never },
+          { id: "k", arn: "arn:aws:kinesis:us-east-1:0:stream/clicks", health: "not-checked" as never },
+        ]),
+      ],
+    }),
+  );
+  assert.equal(g.nodes.find((n) => n.label === "gone")!.ghost, true);
+  assert.equal(g.nodes.find((n) => n.label === "clicks")!.kind, "other");
+  assert.deepEqual(
+    g.edges.map((e) => e.health),
+    ["missing", "not-checked"],
+  );
+});
+
+test("a rule can send events to another bus, and a bus whose rules have no target is not connected", () => {
+  const g = buildGraph(
+    input({
+      rules: [
+        rule("orders", "forward", [{ id: "b", arn: BUS("audit"), health: "not-checked" as never }]),
+        rule("audit", "all", [{ id: "x", arn: Q("sink"), health: "delivers" as never }]),
+        rule("idle", "nothing", []),
+      ],
+    }),
+  );
+  // the forward rule lands on the audit bus node, which is also the source of the next rule
+  const forward = g.edges.find((e) => e.label === "forward")!;
+  assert.equal(forward.to, BUS("audit"));
+  assert.equal(g.nodes.filter((n) => n.kind === "bus").length, 3);
+  const l = layout(g);
+  assert.deepEqual(
+    l.isolated.map((n) => n.label),
+    ["idle"],
+  );
+  const col = (label: string) => l.nodes.find((n) => n.label === label)!.layer;
+  assert.deepEqual([col("orders"), col("audit"), col("sink")], [0, 1, 2]);
+});
+
+test("lines between the same two boxes are spread apart instead of drawn on top of each other", () => {
+  const g = buildGraph(
+    input({
+      queues: [queue("sink")],
+      rules: [
+        rule("bus", "one", [{ id: "a", arn: Q("sink"), health: "delivers" as never }]),
+        rule("bus", "two", [{ id: "b", arn: Q("sink"), health: "delivers" as never }]),
+        rule("bus", "three", [{ id: "c", arn: Q("sink"), health: "delivers" as never }]),
+      ],
+    }),
+  );
+  const l = layout(g);
+  const ys = l.edges.map((e) => e.mid.y);
+  assert.equal(new Set(ys).size, 3);
+  assert.equal(new Set(l.edges.map((e) => e.path)).size, 3);
+  // centred on the middle of the boxes, so the middle line is straight
+  assert.equal(ys[1], l.nodes.find((n) => n.label === "sink")!.y + NODE_H / 2);
+  // a single line is not moved
+  const single = layout(
+    buildGraph(
+      input({ queues: [queue("s")], rules: [rule("b", "r", [{ id: "a", arn: Q("s"), health: "delivers" as never }])] }),
+    ),
+  );
+  const s = single.nodes.find((n) => n.label === "s")!;
+  assert.equal(single.edges[0]!.mid.y, (single.nodes.find((n) => n.label === "b")!.y + s.y + NODE_H) / 2);
 });
