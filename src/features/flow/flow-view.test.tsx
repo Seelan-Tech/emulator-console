@@ -1,8 +1,10 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { mockFetch, opOk, renderApp } from "../../../tests/support/render";
-import { edgeLook, FlowView, lineLabel } from "./flow-view";
+import { clipMiddle, edgeLook, FlowView, lineLabel } from "./flow-view";
+import { loadFlow } from "./load";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }), usePathname: () => "/t/t1/flow" }));
 afterEach(() => vi.unstubAllGlobals());
@@ -237,4 +239,142 @@ test("every kind of line says what it is in words", () => {
   expect(edgeLook({ kind: "subscription" }).label).toBe("unknown");
   expect(edgeLook({ kind: "event-source", note: "Disabled" }).label).toBe("triggers (Disabled)");
   expect(edgeLook({ kind: "dead-letter" }).dashed).toBe(true);
+});
+
+describe("FlowView at scale", () => {
+  test("reads every page of queues and topics, not just the first", async () => {
+    const tokens: string[] = [];
+    mockFetch([
+      [
+        "/sqs/ListQueues",
+        (_u: string, init?: RequestInit) => {
+          const { NextToken } = JSON.parse(init?.body as string) as { NextToken?: string };
+          tokens.push(`sqs:${NextToken ?? ""}`);
+          return opOk(NextToken ? { QueueUrls: ["http://e/0/b"] } : { QueueUrls: ["http://e/0/a"], NextToken: "p2" });
+        },
+      ],
+      [
+        "/sqs/GetQueueAttributes",
+        (_u: string, init?: RequestInit) => {
+          const name = (JSON.parse(init?.body as string) as { QueueUrl: string }).QueueUrl.split("/").pop()!;
+          return opOk({ Attributes: { QueueArn: Q(name) } });
+        },
+      ],
+      ["/lambda/ListFunctions", opOk({ Functions: [] })],
+      ["/lambda/ListEventSourceMappings", opOk({ EventSourceMappings: [] })],
+      [
+        "/eventbridge/ListEventBuses",
+        (_u: string, init?: RequestInit) => {
+          const { NextToken } = JSON.parse(init?.body as string) as { NextToken?: string };
+          tokens.push(`bus:${NextToken ?? ""}`);
+          return opOk(NextToken ? { EventBuses: [] } : { EventBuses: [], NextToken: "b2" });
+        },
+      ],
+      [
+        "/sns/ListTopics",
+        (_u: string, init?: RequestInit) => {
+          const { NextToken } = JSON.parse(init?.body as string) as { NextToken?: string };
+          tokens.push(`sns:${NextToken ?? ""}`);
+          return opOk(NextToken ? { Topics: [] } : { Topics: [], NextToken: "t2" });
+        },
+      ],
+    ]);
+    const { parts } = await loadFlow("t1", "us-east-1");
+    expect(parts.queues.map((q) => q.name)).toEqual(["a", "b"]);
+    expect(tokens).toEqual(["sqs:", "sqs:p2", "sns:", "sns:t2", "bus:", "bus:b2"]);
+  });
+
+  // `n` topics, each delivering to its own queue; the first `broken` have no permission
+  function many(n: number, broken: number) {
+    const names = Array.from({ length: n }, (_, i) => `q${i}`);
+    const topic = (i: number) => `arn:aws:sns:us-east-1:000000000000:t${i}`;
+    return mockFetch([
+      ["/sqs/ListQueues", opOk({ QueueUrls: names.map((q) => `http://e/0/${q}`) })],
+      [
+        "/sqs/GetQueueAttributes",
+        (_u: string, init?: RequestInit) => {
+          const name = (JSON.parse(init?.body as string) as { QueueUrl: string }).QueueUrl.split("/").pop()!;
+          const i = Number(name.slice(1));
+          return opOk({
+            Attributes: { QueueArn: Q(name), ...(i >= broken ? { Policy: policy(Q(name), topic(i)) } : {}) },
+          });
+        },
+      ],
+      ["/lambda/ListFunctions", opOk({ Functions: [] })],
+      ["/lambda/ListEventSourceMappings", opOk({ EventSourceMappings: [] })],
+      ["/eventbridge/ListEventBuses", opOk({ EventBuses: [] })],
+      ["/sns/ListTopics", opOk({ Topics: names.map((_, i) => ({ TopicArn: topic(i) })) })],
+      [
+        "/sns/ListSubscriptionsByTopic",
+        (_u: string, init?: RequestInit) => {
+          const i = Number((JSON.parse(init?.body as string) as { TopicArn: string }).TopicArn.split(":t")[1]);
+          return opOk({ Subscriptions: [{ SubscriptionArn: `s${i}`, Protocol: "sqs", Endpoint: Q(`q${i}`) }] });
+        },
+      ],
+    ]);
+  }
+
+  test("each group is its own card; with many, only the ones with a problem are open", async () => {
+    many(10, 2);
+    renderApp(<FlowView />);
+    expect(await screen.findAllByTestId("flow-card")).toHaveLength(10);
+    expect(screen.getByTestId("flow-count")).toHaveTextContent("10 flows");
+    const buttons = screen.getAllByRole("button", { expanded: true });
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]).toHaveTextContent("t0");
+    expect(buttons[0]).toHaveTextContent("1 problem");
+    // a closed card opens on a click and draws its diagram
+    const closed = screen.getByRole("button", { name: /^t5/ });
+    expect(closed).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(closed);
+    expect(closed).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("with few groups every card is open", async () => {
+    many(3, 0);
+    renderApp(<FlowView />);
+    await screen.findAllByTestId("flow-card");
+    expect(screen.getAllByRole("button", { expanded: true })).toHaveLength(3);
+  });
+
+  test("only connections with a problem narrows the cards and the table", async () => {
+    many(10, 2);
+    renderApp(<FlowView />);
+    await screen.findAllByTestId("flow-card");
+    expect(within(screen.getByTestId("flow-table")).getAllByRole("row")).toHaveLength(11);
+    await userEvent.click(screen.getByTestId("flow-problems-only"));
+    expect(screen.getAllByTestId("flow-card")).toHaveLength(2);
+    expect(screen.getByTestId("flow-count")).toHaveTextContent("2 of 10 flows");
+    expect(within(screen.getByTestId("flow-table")).getAllByRole("row")).toHaveLength(3);
+  });
+
+  test("the search finds the flow of a resource, opens it, and says when nothing matches", async () => {
+    many(10, 0);
+    renderApp(<FlowView />);
+    await screen.findAllByTestId("flow-card");
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search the flow" }), "q7");
+    expect(screen.getAllByTestId("flow-card")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /^t7/ })).toHaveAttribute("aria-expanded", "true");
+    await userEvent.clear(screen.getByRole("searchbox", { name: "Search the flow" }));
+    await userEvent.type(screen.getByRole("searchbox", { name: "Search the flow" }), "zzz");
+    expect(screen.getByText("No flow matches.")).toBeInTheDocument();
+  });
+
+  test("says what it is reading while it loads", async () => {
+    many(4, 0);
+    const said: string[] = [];
+    await loadFlow("t1", "us-east-1", (what) => said.push(what));
+    expect(said).toContain("Reading queues: 4 of 4");
+    expect(said).toContain("Reading topics: 4 of 4");
+    expect(said).toContain("Reading functions");
+  });
+});
+
+test("a long name keeps its start and its end", () => {
+  expect(clipMiddle("orders", 24)).toBe("orders");
+  const clipped = clipMiddle("e2e-scale-mwz8j3xiteb-queue-117", 20);
+  expect(clipped).toHaveLength(20);
+  expect(clipped.startsWith("e2e-sca")).toBe(true);
+  expect(clipped.endsWith("-queue-117")).toBe(true);
+  expect(clipped).toContain("…");
 });
