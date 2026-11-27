@@ -8,11 +8,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **EventBridge screens**: event buses (create, delete; the default bus stays), the rules on a bus (an event pattern or a schedule, an enabled switch, edit and delete), each rule's targets (queues, functions, topics or any ARN, with an optional fixed input), **Send events** to a bus and a **Test the pattern** tab. Like SNS subscriptions, a target gets a **Delivery** column (**delivers**, **needs permission** with a **Fix** button, **target missing**): the emulator delivers to a queue, function or topic only if its policy allows the rule, and **Allow this rule to deliver** adds that statement when a target is added.
 - **Message flow**: a page in each target's sidebar that draws how topics, queues and functions connect. SNS subscriptions show whether they deliver (or need a permission, or point at something missing), queues show their dead-letter queue, and Lambda event source mappings show what triggers a function. Boxes link to the resources, resources with no connection are listed apart, and a table lists the same connections for screen readers.
 - **Export and import for fixtures**: **Export** in the fixture editor and **Export all** on the Fixtures page save fixtures as JSON files that can be committed next to the code, and **Import** reads them back. Import shows what will happen first (new, renamed, replaced, skipped, not valid, problems found by **Check**), and a name that exists is saved as `name (2)`, replaces the existing fixture or is skipped. The console asks before it saves a file with values that may be secret (a secret, a secure parameter, function environment variables).
 - **Add an assertion…** in the fixture editor: ready-made checks (a queue has N messages, a table has N items, an S3 object exists, a function is `Active`, a topic has N subscriptions, a secret exists) that are appended to the steps with suitable retries. The run results and History show how many checks hold (**2 of 3 assertions held**).
 - **Copy as AWS CLI script** exports assertions as shell tests that retry like a replay and stop the script with `check failed: …` when one does not hold.
 - **Assertions** in fixtures: a step with `expect` reads something and checks the response (`equals`, `notEquals`, `contains`, `exists`, `length`, `gt`/`gte`/`lt`/`lte`, `matches`), so a replay can confirm the state it built. A check that does not hold fails the step, and `retries` poll for state that arrives later (a function becoming `Active`). `{{variables}}` work in the expected values, **Check** validates the shape, and a failure never quotes the response of Secrets Manager, SSM or KMS.
+
+### Changed
+
+- The warning badge uses a darker amber (`--warning-text`) so its text passes contrast checks, and every code editor has an accessible name for screen readers.
 
 ## [0.4.0] - 2026-11-26
 

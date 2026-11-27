@@ -1,6 +1,6 @@
 # Emulator Console user guide
 
-Emulator Console is a web app for operating the AWS Emulator: browse and edit S3, DynamoDB, SQS, Lambda, SNS and Secrets Manager, run any other operation from generated forms, record what you do as **fixtures**, and replay them when the emulator restarts and loses its state.
+Emulator Console is a web app for operating the AWS Emulator: browse and edit S3, DynamoDB, SQS, Lambda, SNS, EventBridge and Secrets Manager, run any other operation from generated forms, record what you do as **fixtures**, and replay them when the emulator restarts and loses its state.
 
 ![The target overview](images/overview.png#gh-light-mode-only)
 ![The target overview](images/overview-dark.png#gh-dark-mode-only)
@@ -15,7 +15,7 @@ Emulator Console is a web app for operating the AWS Emulator: browse and edit S3
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Get it running in five minutes                                | [Getting started](getting-started.md)                                                                                                                                                                                                     |
 | Understand targets, fixtures and restart recovery | [Concepts](concepts.md)                                                                                                                                                                                                                   |
-| Work with a service                                           | [S3](services/s3.md) · [DynamoDB](services/dynamodb.md) · [SQS](services/sqs.md) · [Lambda](services/lambda.md) · [SNS](services/sns.md) · [Secrets Manager](services/secrets-manager.md) · [Everything else](services/other-services.md) |
+| Work with a service                                           | [S3](services/s3.md) · [DynamoDB](services/dynamodb.md) · [SQS](services/sqs.md) · [Lambda](services/lambda.md) · [SNS](services/sns.md) · [EventBridge](services/eventbridge.md) · [Secrets Manager](services/secrets-manager.md) · [Everything else](services/other-services.md) |
 | See how topics, queues and functions connect                  | [Message flow](message-flow.md)                                                                                                                                                                                                           |
 | Move around quickly                                           | [Command palette](command-palette.md)                                                                                                                                                                                                     |
 | Rebuild your emulator after a restart                         | [Fixtures and replay](fixtures.md)                                                                                                                                                                                                        |

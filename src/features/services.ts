@@ -35,7 +35,7 @@ export const SERVICES: ServiceMeta[] = [
   { id: "dynamodb", label: "DynamoDB", group: "Storage", icon: Table2, native: "dynamodb" },
   { id: "sqs", label: "SQS", group: "Messaging", icon: Inbox, native: "sqs" },
   { id: "sns", label: "SNS", group: "Messaging", icon: Bell, native: "sns" },
-  { id: "eventbridge", label: "EventBridge", group: "Messaging", icon: CalendarClock },
+  { id: "eventbridge", label: "EventBridge", group: "Messaging", icon: CalendarClock, native: "eventbridge" },
   { id: "kinesis", label: "Kinesis", group: "Messaging", icon: Waves },
   { id: "lambda", label: "Lambda", group: "Compute", icon: FunctionSquare, native: "lambda" },
   { id: "sfn", label: "Step Functions", group: "Compute", icon: Workflow },

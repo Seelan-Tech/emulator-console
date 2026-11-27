@@ -1,6 +1,6 @@
 # Emulator Console
 
-A local web console for use with the [AWS Emulator](https://github.com/aws/aws-emulator): browse and change resources through native screens for S3, DynamoDB, SQS, Lambda, SNS and Secrets Manager, run any operation of 16 services from generated forms, **record** what you do as *fixtures*, and **replay** them to rebuild state. An *activity log* shows what changed.
+A local web console for use with the [AWS Emulator](https://github.com/aws/aws-emulator): browse and change resources through native screens for S3, DynamoDB, SQS, Lambda, SNS, EventBridge and Secrets Manager, run any operation of 16 services from generated forms, **record** what you do as *fixtures*, and **replay** them to rebuild state. An *activity log* shows what changed.
 
 ![The target overview](docs/images/overview.png#gh-light-mode-only)
 ![The target overview](docs/images/overview-dark.png#gh-dark-mode-only)
@@ -30,7 +30,7 @@ The stack builds the emulator image from AWS's own signed package at a pinned ve
 The full **[user guide](docs/index.md)** (these pages describe the latest release; `main` may be ahead). To read the guide for the version you run, open the repository at that release's tag (`https://github.com/Seelan-Tech/emulator-console/tree/v<version>/docs`); the **Help** button in the app does exactly that:
 
 - [Getting started](docs/getting-started.md) and [concepts](docs/concepts.md)
-- Service guides: [S3](docs/services/s3.md), [DynamoDB](docs/services/dynamodb.md), [SQS](docs/services/sqs.md), [Lambda](docs/services/lambda.md), [SNS](docs/services/sns.md), [Secrets Manager](docs/services/secrets-manager.md) and [the rest](docs/services/other-services.md)
+- Service guides: [S3](docs/services/s3.md), [DynamoDB](docs/services/dynamodb.md), [SQS](docs/services/sqs.md), [Lambda](docs/services/lambda.md), [SNS](docs/services/sns.md), [EventBridge](docs/services/eventbridge.md), [Secrets Manager](docs/services/secrets-manager.md) and [the rest](docs/services/other-services.md)
 - [Message flow](docs/message-flow.md), [fixtures and replay](docs/fixtures.md) and [the command palette](docs/command-palette.md)
 - [Emulator setup, versions and telemetry](docs/emulator-setup.md), [running it locally](docs/deployment.md) and [security](docs/security.md)
 - [Configuration](docs/configuration.md), [API](docs/api.md) and [troubleshooting](docs/troubleshooting.md)

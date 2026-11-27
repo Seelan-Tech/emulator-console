@@ -3,7 +3,7 @@
 ![The operation list for a service](../images/operations.png#gh-light-mode-only)
 ![The operation list for a service](../images/operations-dark.png#gh-dark-mode-only)
 
-Every service the emulator supports is in the sidebar: EventBridge, Kinesis, Step Functions, EC2, KMS, IAM, STS, SSM, CloudWatch Logs and CloudFormation, plus the six with their own screens. Choosing a service without a screen opens its **All operations** list; **Search operations** narrows it (the [command palette](../command-palette.md) can jump straight to any operation too).
+Every service the emulator supports is in the sidebar: Kinesis, Step Functions, EC2, KMS, IAM, STS, SSM, CloudWatch Logs and CloudFormation, plus the seven with their own screens (the [EventBridge](eventbridge.md) screens are one of them). Choosing a service without a screen opens its **All operations** list; **Search operations** narrows it (the [command palette](../command-palette.md) can jump straight to any operation too).
 
 ## Running an operation
 

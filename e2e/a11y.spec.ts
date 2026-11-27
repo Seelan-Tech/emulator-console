@@ -22,6 +22,8 @@ test("main screens have no serious accessibility violations", async ({ page, tar
     ["Lambda", `${target.base}/lambda`],
     ["SNS", `${target.base}/sns`],
     ["message flow", `${target.base}/flow`],
+    ["EventBridge", `${target.base}/eventbridge`],
+    ["EventBridge default bus", `${target.base}/eventbridge/default`],
     ["Secrets Manager", `${target.base}/secrets`],
     ["operations", `${target.base}/s/ssm`],
     ["fixtures", `/fixtures`],

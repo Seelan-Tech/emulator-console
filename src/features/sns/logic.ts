@@ -95,16 +95,22 @@ const globMatch = (pattern: string, value: string) =>
 
 const SNS_SERVICE = "sns.amazonaws.com";
 
-function principalIsSns(p: unknown): boolean {
+function principalIs(p: unknown, service: string): boolean {
   if (p === "*") return true;
   if (!p || typeof p !== "object") return false;
   const o = p as Record<string, string | string[]>;
-  return list(o.Service).some((v) => v === SNS_SERVICE) || list(o.AWS).some((v) => v === "*");
+  return list(o.Service).some((v) => v === service) || list(o.AWS).some((v) => v === "*");
 }
 
-// Does the resource policy let SNS call `action` for this topic? Statements that name another topic do not count;
-// a statement with no source condition (or only other conditions, such as the account) allows any topic.
-export function policyAllowsTopic(policy: string | undefined, topicArn: string, action: string): boolean {
+// Does the resource policy let `service` (sns.amazonaws.com, events.amazonaws.com) call `action` for this source?
+// Statements that name another source do not count; a statement with no source condition (or only other
+// conditions, such as the account) allows any source.
+export function policyAllowsSource(
+  policy: string | undefined,
+  service: string,
+  sourceArn: string,
+  action: string,
+): boolean {
   if (!policy) return false;
   let statements: Stmt[];
   try {
@@ -114,19 +120,23 @@ export function policyAllowsTopic(policy: string | undefined, topicArn: string, 
     return false;
   }
   return statements.some((s) => {
-    if (s.Effect !== "Allow" || !principalIsSns(s.Principal)) return false;
+    if (s.Effect !== "Allow" || !principalIs(s.Principal, service)) return false;
     if (!list(s.Action).some((a) => a === "*" || globMatch(a, action))) return false;
     for (const [op, keys] of Object.entries(s.Condition ?? {})) {
       for (const [key, v] of Object.entries(keys)) {
         if (key.toLowerCase() !== "aws:sourcearn") continue;
         const wanted = list(v);
-        const matches = /like/i.test(op) ? wanted.some((w) => globMatch(w, topicArn)) : wanted.includes(topicArn);
+        const matches = /like/i.test(op) ? wanted.some((w) => globMatch(w, sourceArn)) : wanted.includes(sourceArn);
         if (!matches) return false;
       }
     }
     return true;
   });
 }
+
+// The same question for an SNS topic.
+export const policyAllowsTopic = (policy: string | undefined, topicArn: string, action: string) =>
+  policyAllowsSource(policy, SNS_SERVICE, topicArn, action);
 
 export type Health = "delivers" | "needs-permission" | "missing" | "unknown";
 
