@@ -8,6 +8,7 @@ import { CodeEditor, type Language } from "./code-editor";
 // CodeMirror cannot be laid out by jsdom; a textarea stands in for it.
 vi.mock("@uiw/react-codemirror", () => ({
   default: ({ value }: { value: string }) => <textarea aria-label="editor" value={value} readOnly />,
+  EditorView: { contentAttributes: { of: () => [] } },
 }));
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: "light" }) }));
 

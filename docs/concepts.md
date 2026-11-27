@@ -21,7 +21,7 @@ The **overview** of a target shows whether it is connected and which services th
 
 ## Services and operations
 
-The six services with their own screens are [S3](services/s3.md), [DynamoDB](services/dynamodb.md), [SQS](services/sqs.md), [Lambda](services/lambda.md), [SNS](services/sns.md) and [Secrets Manager](services/secrets-manager.md). Every operation of all 16 supported services can be run from the [operation runner](services/other-services.md), whose forms are generated from the AWS SDK itself, so they always match the API.
+The seven services with their own screens are [S3](services/s3.md), [DynamoDB](services/dynamodb.md), [SQS](services/sqs.md), [Lambda](services/lambda.md), [SNS](services/sns.md), [EventBridge](services/eventbridge.md) and [Secrets Manager](services/secrets-manager.md). Every operation of all 16 supported services can be run from the [operation runner](services/other-services.md), whose forms are generated from the AWS SDK itself, so they always match the API.
 
 ## The recorder
 

@@ -3,6 +3,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { json } from "@codemirror/lang-json";
 import { python } from "@codemirror/lang-python";
 import { oneDark } from "@codemirror/theme-one-dark";
+import type { ReactCodeMirrorProps } from "@uiw/react-codemirror";
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 
@@ -10,10 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { beautifyJson } from "@/lib/json";
 
-const CodeMirror = dynamic(() => import("@uiw/react-codemirror"), {
-  ssr: false,
-  loading: () => <Skeleton className="h-40 w-full" />,
-});
+// The editor's text area has no label of its own: give it one (screen readers announce an unnamed input as just "edit").
+const CodeMirror = dynamic(
+  async () => {
+    const { default: Base, EditorView } = await import("@uiw/react-codemirror");
+    return function LabelledEditor({ label, extensions = [], ...props }: ReactCodeMirrorProps & { label: string }) {
+      return <Base {...props} extensions={[...extensions, EditorView.contentAttributes.of({ "aria-label": label })]} />;
+    };
+  },
+  { ssr: false, loading: () => <Skeleton className="h-40 w-full" /> },
+);
 
 export type Language = "json" | "python" | "javascript" | "text";
 
@@ -24,6 +31,7 @@ export function CodeEditor({
   height = "240px",
   readOnly = false,
   beautify = true,
+  label = "Code editor",
   className,
 }: {
   value: string;
@@ -33,6 +41,8 @@ export function CodeEditor({
   readOnly?: boolean;
   /** Offer a Beautify button while the text is a JSON object or array (JSON and plain-text editors). */
   beautify?: boolean;
+  /** What the editor holds, for screen readers (the visible label is elsewhere on the page). */
+  label?: string;
   className?: string;
 }) {
   const { resolvedTheme } = useTheme();
@@ -64,6 +74,7 @@ export function CodeEditor({
         </div>
       )}
       <CodeMirror
+        label={label}
         value={value}
         onChange={onChange}
         height={height}
