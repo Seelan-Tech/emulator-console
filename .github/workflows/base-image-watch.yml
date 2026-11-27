@@ -1,0 +1,57 @@
+name: Base image watch
+
+# The Dockerfile upgrades libpam itself because node:24-slim has not shipped Debian's fix for CVE-2025-6020. This opens an
+# issue once the base image has it, so the workaround can be deleted (and a release that was waiting for it can go out).
+
+on:
+  schedule:
+    - cron: "23 6 * * *" # daily, 06:23 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: base-image-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  libpam:
+    name: libpam fix in the base image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # to open the issue
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check the base image
+        id: check
+        run: |
+          code=0
+          scripts/check-base-image.sh || code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+      - name: Open an issue when the fix is there
+        if: steps.check.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="The base image has the libpam fix: drop the Dockerfile workaround"
+          if gh issue list --state open --json title --jq '.[].title' | grep -qxF "$title"; then
+            echo "The issue is open already"
+            exit 0
+          fi
+          gh issue create --title "$title" --body "$(cat <<'BODY'
+          The base image of the Dockerfile now ships libpam with Debian's fix for CVE-2025-6020, so the layer that upgrades libpam in the runtime stage is no longer needed.
+
+          - Delete that layer from the `Dockerfile` (it names this CVE) in a small PR, and let the Image scan confirm it passes without it.
+          - A release that was waiting for this patch can go ahead afterwards.
+
+          Opened by the `Base image watch` workflow. It stops opening issues once the layer is gone.
+          BODY
+          )"
+      - name: Fail when the check could not run
+        if: steps.check.outputs.code == '2'
+        run: |
+          echo "::error::The base image could not be checked (see the step above)"
+          exit 1
